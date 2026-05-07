@@ -186,31 +186,58 @@
             </div>
           </div>
 
-          <!-- CASHFLOW WATERFALL (effetto vetro) -->
+          <!-- CASHFLOW — tab Cascata + Top Categorie -->
           <div class="panel cashflow-panel glass-panel">
-            <div class="panel-header">
-              <h2 class="panel-title">Flusso di Cassa</h2>
-              <span class="panel-badge">CashFlow</span>
-            </div>
-            <div class="chart-wrap">
-              <Chart
-                v-if="waterfallData"
-                type="bar"
-                :data="waterfallData"
-                :options="waterfallOptions"
-                :plugins="waterfallPlugins"
-                style="height:100%;width:100%"
-              />
-              <div v-else class="chart-empty">
-                <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="20" width="8" height="16" rx="1"/><rect x="16" y="12" width="8" height="24" rx="1"/><rect x="28" y="4" width="8" height="32" rx="1"/></svg>
-                <p>Nessun dato</p>
-              </div>
-            </div>
+            <Tabs :value="activeCfTab" @update:value="activeCfTab = $event">
+              <TabList class="cf-tablist">
+                <Tab value="cascata" class="cf-tab">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="4" width="3" height="8" rx="1"/><rect x="7" y="2" width="3" height="10" rx="1"/><rect x="12" y="6" width="3" height="6" rx="1"/></svg>
+                  Cascata
+                </Tab>
+                <Tab value="topcat" class="cf-tab">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 4h10M3 8h7M3 12h5"/></svg>
+                  Top Categorie
+                </Tab>
+              </TabList>
+              <TabPanels>
+                <TabPanel value="cascata">
+                  <div class="chart-wrap">
+                    <Chart
+                      v-if="waterfallData"
+                      type="bar"
+                      :data="waterfallData"
+                      :options="waterfallOptions"
+                      :plugins="waterfallPlugins"
+                      style="height:100%;width:100%"
+                    />
+                    <div v-else class="chart-empty">
+                      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="20" width="8" height="16" rx="1"/><rect x="16" y="12" width="8" height="24" rx="1"/><rect x="28" y="4" width="8" height="32" rx="1"/></svg>
+                      <p>Nessun dato</p>
+                    </div>
+                  </div>
+                </TabPanel>
+                <TabPanel value="topcat">
+                  <div class="chart-wrap topcat-wrap">
+                    <Chart
+                      v-if="topCatData"
+                      type="bar"
+                      :data="topCatData"
+                      :options="topCatOptions"
+                      style="height:100%;width:100%"
+                    />
+                    <div v-else class="chart-empty">
+                      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><path d="M6 10h28M6 20h20M6 30h14"/></svg>
+                      <p>Nessun dato disponibile</p>
+                    </div>
+                  </div>
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
           </div>
 
         </section>
 
-        <!-- ── ANALYSIS TABS (Trend + Storico) ── -->
+        <!-- ── ANALYSIS TABS ── -->
         <section class="panel tabs-panel">
           <Tabs :value="activeBottomTab" @update:value="activeBottomTab = $event">
             <TabList class="tab-list-custom">
@@ -219,27 +246,133 @@
                 Trend 12 Mesi
               </Tab>
               <Tab value="storico" class="tab-custom">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>
-                Storico
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="M8 6v4"/></svg>
+                Storico Cumulativo
+              </Tab>
+              <Tab value="dettaglio" class="tab-custom">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="2" y="9" width="3" height="5" rx="1"/><rect x="7" y="5" width="3" height="9" rx="1"/><rect x="12" y="2" width="3" height="12" rx="1"/></svg>
+                Dettaglio Mese
               </Tab>
             </TabList>
             <TabPanels>
+
+              <!-- TAB 1: TREND 12 MESI -->
               <TabPanel value="trend">
-                <div class="placeholder-state">
-                  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" class="placeholder-icon"><path d="M4 36 L12 24 L20 28 L28 18 L36 22 L44 12"/><circle cx="12" cy="24" r="2" fill="currentColor"/><circle cx="20" cy="28" r="2" fill="currentColor"/><circle cx="28" cy="18" r="2" fill="currentColor"/><circle cx="36" cy="22" r="2" fill="currentColor"/></svg>
-                  <h3>Trend 12 Mesi</h3>
-                  <p>Prossimamente: grafico lineare con l'andamento mensile di entrate e uscite.</p>
-                  <span class="coming-soon-badge">In sviluppo</span>
+                <div v-if="trend12BarData" class="chart-tab-body">
+                  <!-- KPI summary -->
+                  <div class="trend-summary-row">
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Media Entrate</span>
+                      <span class="trend-stat-val income-text">€ {{ fmt0(trendSummary.avgIncome) }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Media Uscite</span>
+                      <span class="trend-stat-val expense-text">€ {{ fmt0(trendSummary.avgExpense) }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Mese Migliore</span>
+                      <span class="trend-stat-val net-text">{{ trendSummary.bestMonth }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Mese Peggiore</span>
+                      <span class="trend-stat-val expense-text">{{ trendSummary.worstMonth }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Grafico 1: Barre affiancate Entrate vs Uscite -->
+                  <div class="trend-chart-block">
+                    <div class="trend-chart-label">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="8" width="4" height="6" rx="1"/><rect x="10" y="4" width="4" height="10" rx="1"/></svg>
+                      Entrate vs Uscite
+                    </div>
+                    <div class="chart-wrap-tall">
+                      <Chart type="bar" :data="trend12BarData" :options="trend12BarOptions" style="height:100%;width:100%" />
+                    </div>
+                  </div>
+
+                  <!-- Grafico 2: Risparmio cumulativo 12 mesi -->
+                  <div class="trend-chart-block">
+                    <div class="trend-chart-label">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M2 13 C4 10 6 11 8 8 S12 3 14 3"/><path d="M2 13 L14 3 L14 13 Z" fill="currentColor" opacity="0.15"/></svg>
+                      Percorso del Risparmio
+                    </div>
+                    <div class="chart-wrap-tall">
+                      <Chart type="line" :data="trend12CumData" :options="trend12CumOptions" style="height:100%;width:100%" />
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="chart-empty">
+                  <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><path d="M4 30 L12 20 L20 22 L28 12 L36 15"/></svg>
+                  <p>Nessun dato disponibile</p>
                 </div>
               </TabPanel>
+
+              <!-- TAB 2: STORICO CUMULATIVO -->
               <TabPanel value="storico">
-                <div class="placeholder-state">
-                  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" class="placeholder-icon"><circle cx="24" cy="24" r="18"/><path d="M24 12v12l8 6"/></svg>
-                  <h3>Storico Cumulativo</h3>
-                  <p>Prossimamente: andamento totale del risparmio nel tempo.</p>
-                  <span class="coming-soon-badge">In sviluppo</span>
+                <div v-if="storicoData" class="chart-tab-body">
+                  <div class="trend-summary-row">
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Risparmio Totale</span>
+                      <span class="trend-stat-val net-text">€ {{ fmt0(storicoSummary.totalNet) }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Massimo Storico</span>
+                      <span class="trend-stat-val income-text">€ {{ fmt0(storicoSummary.maxCumulative) }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Mesi Analizzati</span>
+                      <span class="trend-stat-val">{{ storicoSummary.months }}</span>
+                    </div>
+                    <div class="trend-stat">
+                      <span class="trend-stat-label">Media Mensile</span>
+                      <span class="trend-stat-val net-text">€ {{ fmt0(storicoSummary.avgMonthly) }}</span>
+                    </div>
+                  </div>
+                  <div class="chart-wrap-tall">
+                    <Chart type="line" :data="storicoData" :options="storicoOptions" style="height:100%;width:100%" />
+                  </div>
+                </div>
+                <div v-else class="chart-empty">
+                  <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><circle cx="20" cy="20" r="14"/><path d="M20 10v10l6 5"/></svg>
+                  <p>Nessun dato disponibile</p>
                 </div>
               </TabPanel>
+
+              <!-- TAB 3: DETTAGLIO MESE -->
+              <TabPanel value="dettaglio">
+                <div class="chart-tab-body">
+                  <div class="dettaglio-toolbar">
+                    <label class="dettaglio-label">Seleziona mese:</label>
+                    <select class="dettaglio-select" v-model="dettaglioMonth" @change="loadDettaglio">
+                      <option v-for="m in dettaglioMonthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+                    </select>
+                  </div>
+                  <div v-if="dettaglioData" class="dettaglio-grid">
+                    <div class="dettaglio-kpi-row">
+                      <div class="dettaglio-kpi income-bg">
+                        <span class="dettaglio-kpi-label">Entrate</span>
+                        <span class="dettaglio-kpi-val">+€ {{ fmt0(dettaglioStats.income) }}</span>
+                      </div>
+                      <div class="dettaglio-kpi expense-bg">
+                        <span class="dettaglio-kpi-label">Uscite</span>
+                        <span class="dettaglio-kpi-val">-€ {{ fmt0(dettaglioStats.expense) }}</span>
+                      </div>
+                      <div class="dettaglio-kpi" :class="dettaglioStats.net >= 0 ? 'net-bg' : 'neg-bg'">
+                        <span class="dettaglio-kpi-label">Netto</span>
+                        <span class="dettaglio-kpi-val">{{ dettaglioStats.net >= 0 ? '+' : '' }}€ {{ fmt0(dettaglioStats.net) }}</span>
+                      </div>
+                    </div>
+                    <div class="chart-wrap-tall">
+                      <Chart type="bar" :data="dettaglioData" :options="dettaglioOptions" style="height:100%;width:100%" />
+                    </div>
+                  </div>
+                  <div v-else class="chart-empty">
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="20" width="8" height="16" rx="1"/><rect x="16" y="12" width="8" height="24" rx="1"/><rect x="28" y="4" width="8" height="32" rx="1"/></svg>
+                    <p>Seleziona un mese per vedere il dettaglio</p>
+                  </div>
+                </div>
+              </TabPanel>
+
             </TabPanels>
           </Tabs>
         </section>
@@ -258,7 +391,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import initSqlJs from 'sql.js';
 import Chart from 'primevue/chart';
 import Tabs from 'primevue/tabs';
@@ -415,6 +548,135 @@ const waterfallConnector = {
 };
 const waterfallPlugins = ref([waterfallConnector]);
 
+// ── CASHFLOW TAB ──
+const activeCfTab = ref('cascata');
+
+// ── TOP CATEGORIE ──
+const topCatData    = ref(null);
+const topCatOptions = ref({});
+
+const loadTopCat = () => {
+  if (!dbInstance) return;
+  try {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    let startMs = 0, endMs = Date.now();
+    if (selectedPeriod.value === 'current_month') startMs = new Date(y, m, 1).getTime();
+    else if (selectedPeriod.value === 'last_month') { startMs = new Date(y, m - 1, 1).getTime(); endMs = new Date(y, m, 0, 23, 59, 59, 999).getTime(); }
+    else if (selectedPeriod.value === 'ytd') startMs = new Date(y, 0, 1).getTime();
+
+    const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
+
+    // Prova con JOIN CATEGORY
+    let rows = safeExec(`
+      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) >= ${startMs} AND CAST(i.ZDATE AS REAL) <= ${endMs}
+        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
+      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+    `);
+
+    // Fallback WDATE
+    if (!rows.length) rows = safeExec(`
+      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.WDATE AS REAL) >= ${startMs} AND CAST(i.WDATE AS REAL) <= ${endMs}
+        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
+      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+    `);
+
+    // Fallback NIC_NAME
+    if (!rows.length) rows = safeExec(`
+      SELECT COALESCE(a.NIC_NAME, 'Altro') as cat, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN ASSETS a ON i.assetUid = a.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) >= ${startMs} AND CAST(i.ZDATE AS REAL) <= ${endMs}
+      GROUP BY a.uid ORDER BY tot DESC LIMIT 10
+    `);
+
+    if (!rows.length) { topCatData.value = null; return; }
+
+    const isDark = theme.value === 'dark';
+    const labels = rows.map(([cat]) => cat || 'Altro');
+    const values = rows.map(([, v]) => Number(v) || 0);
+    const maxVal = Math.max(...values);
+
+    // Palette di rossi graduali dal più scuro (top spesa) al più chiaro
+    const bgColors = values.map((v) => {
+      const ratio = maxVal > 0 ? v / maxVal : 0;
+      const alpha = isDark ? 0.30 + ratio * 0.45 : 0.25 + ratio * 0.45;
+      return `rgba(239,68,68,${alpha.toFixed(2)})`;
+    });
+    const borderColors = values.map((v) => {
+      const ratio = maxVal > 0 ? v / maxVal : 0;
+      return ratio > 0.6 ? (isDark ? '#dc2626' : '#b91c1c') : (isDark ? '#f87171' : '#ef4444');
+    });
+
+    topCatData.value = {
+      labels,
+      datasets: [{
+        label: 'Spesa',
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1.5,
+        borderRadius: 5,
+        borderSkipped: false
+      }]
+    };
+
+    topCatOptions.value = {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: isDark ? 'rgba(28,27,25,0.95)' : 'rgba(15,23,42,0.95)',
+          titleColor: isDark ? '#94a3b8' : '#cbd5e1',
+          bodyColor: '#f1f5f9',
+          padding: 12, cornerRadius: 8,
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+          borderWidth: 1,
+          callbacks: {
+            label: (ctx) => ` € ${Math.round(ctx.raw).toLocaleString('it-IT')}`,
+            afterLabel: (ctx) => {
+              const total = values.reduce((a, b) => a + b, 0);
+              const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+              return ` ${pct}% del totale`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+          border: { display: false },
+          ticks: {
+            font: { size: 10, family: 'Inter, sans-serif' },
+            color: isDark ? '#64748b' : '#94a3b8',
+            callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+          }
+        },
+        y: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: {
+            font: { size: 12, weight: '600', family: 'Inter, sans-serif' },
+            color: isDark ? '#94a3b8' : '#475569'
+          }
+        }
+      }
+    };
+  } catch(e) { console.error('loadTopCat:', e); topCatData.value = null; }
+};
+
 // ── CARICAMENTO FILE ──
 const handleFileUpload = async (event) => {
   const file = event.target.files[0];
@@ -490,12 +752,508 @@ const refreshData = () => {
 
     statusMessage.value = 'Aggiornato · ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
     isError.value = false;
+    // Carica anche i grafici storici
+    loadTrend12();
+    loadStorico();
+    loadTopCat();
+    buildDettaglioOptions();
+    if (dettaglioMonth.value) loadDettaglio();
   } catch (err) {
     console.error(err);
     statusMessage.value = 'Errore: ' + err.message;
     isError.value = true;
   }
 };
+
+// ══════════════════════════════════════════════
+// TREND 12 MESI
+// ══════════════════════════════════════════════
+const trend12BarData  = ref(null);
+const trend12BarOptions = ref({});
+const trend12CumData  = ref(null);
+const trend12CumOptions = ref({});
+const trendSummary = ref({ avgIncome: 0, avgExpense: 0, bestMonth: '-', worstMonth: '-' });
+
+const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+
+const baseScales = (isDark, extra = {}) => ({
+  x: {
+    grid: { display: false },
+    border: { display: false },
+    ticks: { font: { size: 10, weight: '600', family: 'Inter, sans-serif' }, color: isDark ? '#64748b' : '#94a3b8', maxRotation: 0 }
+  },
+  y: {
+    beginAtZero: true,
+    grace: '10%',
+    border: { display: false },
+    grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+    ticks: {
+      font: { size: 10, family: 'Inter, sans-serif' },
+      color: isDark ? '#64748b' : '#94a3b8',
+      callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+    }
+  },
+  ...extra
+});
+
+const baseTooltip = (isDark) => ({
+  backgroundColor: isDark ? 'rgba(28,27,25,0.95)' : 'rgba(15,23,42,0.95)',
+  titleColor: isDark ? '#94a3b8' : '#cbd5e1',
+  bodyColor: '#f1f5f9',
+  padding: 12, cornerRadius: 8,
+  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+  borderWidth: 1,
+  callbacks: { label: (ctx) => ` ${ctx.dataset.label}: € ${Math.round(ctx.raw).toLocaleString('it-IT')}` }
+});
+
+const buildLineOptions = (isDark, extraOpts = {}) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: {
+      display: true, position: 'top', align: 'end',
+      labels: { boxWidth: 10, boxHeight: 10, borderRadius: 4, font: { size: 11, family: 'Inter, sans-serif', weight: '600' }, color: isDark ? '#94a3b8' : '#64748b', padding: 16, usePointStyle: true, pointStyle: 'circle' }
+    },
+    tooltip: baseTooltip(isDark)
+  },
+  scales: baseScales(isDark, extraOpts)
+});
+
+const loadTrend12 = () => {
+  if (!dbInstance) return;
+  try {
+    const now = new Date();
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ y: d.getFullYear(), m: d.getMonth(), label: MESI[d.getMonth()] + ' ' + String(d.getFullYear()).slice(2) });
+    }
+
+    const incomes = [], expenses = [], nets = [];
+    months.forEach(({ y, m }) => {
+      const start = new Date(y, m, 1).getTime();
+      const end   = new Date(y, m + 1, 0, 23, 59, 59, 999).getTime();
+      const run   = (q) => { const r = dbInstance.exec(q); return (r.length > 0 && r[0].values[0][0]) ? Number(r[0].values[0][0]) : 0; };
+      const inc   = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=0 AND CAST(ZDATE AS REAL) >= ${start} AND CAST(ZDATE AS REAL) <= ${end}`);
+      const exp   = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=1 AND CAST(ZDATE AS REAL) >= ${start} AND CAST(ZDATE AS REAL) <= ${end}`);
+      incomes.push(inc);
+      expenses.push(exp);
+      nets.push(inc - exp);
+    });
+
+    const isDark = theme.value === 'dark';
+    const labels = months.map(mo => mo.label);
+
+    // ── Grafico 1: barre affiancate Entrate/Uscite + linea netto grigia ──
+    trend12BarData.value = {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Entrate',
+          data: incomes,
+          backgroundColor: isDark ? 'rgba(16,185,129,0.70)' : 'rgba(16,185,129,0.65)',
+          borderColor: '#059669',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          yAxisID: 'y'
+        },
+        {
+          type: 'bar',
+          label: 'Uscite',
+          data: expenses,
+          backgroundColor: isDark ? 'rgba(239,68,68,0.70)' : 'rgba(239,68,68,0.65)',
+          borderColor: '#dc2626',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: 'Netto',
+          data: nets,
+          borderColor: isDark ? 'rgba(148,163,184,0.55)' : 'rgba(100,116,139,0.45)',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 3,
+          pointBackgroundColor: (ctx) => nets[ctx.dataIndex] >= 0
+            ? (isDark ? 'rgba(16,185,129,0.7)' : 'rgba(5,150,105,0.7)')
+            : (isDark ? 'rgba(239,68,68,0.7)'  : 'rgba(220,38,38,0.7)'),
+          pointBorderWidth: 0,
+          tension: 0.35,
+          yAxisID: 'y',
+          order: 0
+        }
+      ]
+    };
+    trend12BarOptions.value = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: {
+            boxWidth: 10, boxHeight: 10, borderRadius: 3,
+            font: { size: 11, family: 'Inter, sans-serif', weight: '600' },
+            color: isDark ? '#94a3b8' : '#64748b',
+            padding: 12, usePointStyle: true,
+            filter: (item) => item.text !== 'Netto',
+            generateLabels: (chart) => {
+              const def = chart.data.datasets.map((ds, i) => ({
+                text: ds.label,
+                fillStyle: Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor,
+                strokeStyle: ds.borderColor,
+                lineWidth: ds.borderWidth,
+                hidden: !chart.isDatasetVisible(i),
+                datasetIndex: i,
+                pointStyle: ds.type === 'line' ? 'line' : 'rectRounded'
+              }));
+              // Override label netto: linea tratteggiata grigia
+              const nettoItem = def.find(d => d.text === 'Netto');
+              if (nettoItem) {
+                nettoItem.fillStyle = 'transparent';
+                nettoItem.strokeStyle = isDark ? 'rgba(148,163,184,0.6)' : 'rgba(100,116,139,0.5)';
+                nettoItem.lineDash = [4, 3];
+                nettoItem.text = 'Netto';
+              }
+              return def;
+            }
+          }
+        },
+        tooltip: {
+          ...baseTooltip(isDark),
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              if (ctx.dataset.label === 'Netto') return ` Netto: ${v >= 0 ? '+' : ''}€ ${Math.round(v).toLocaleString('it-IT')}`;
+              return ` ${ctx.dataset.label}: € ${Math.round(v).toLocaleString('it-IT')}`;
+            }
+          }
+        }
+      },
+      scales: baseScales(isDark)
+    };
+
+    // ── Grafico 2: area cumulativa risparmio ──
+    let cum = 0;
+    const cumulative = nets.map(n => { cum += n; return cum; });
+    // Colora il fill in base al segno finale
+    const isPositive = cumulative[cumulative.length - 1] >= 0;
+    const fillColor  = isPositive
+      ? (isDark ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.12)')
+      : (isDark ? 'rgba(239,68,68,0.18)'  : 'rgba(239,68,68,0.12)');
+    const lineColor  = isPositive ? '#3b82f6' : '#ef4444';
+
+    trend12CumData.value = {
+      labels,
+      datasets: [{
+        label: 'Risparmio Cumulativo',
+        data: cumulative,
+        borderColor: lineColor,
+        backgroundColor: fillColor,
+        borderWidth: 2.5,
+        pointRadius: (ctx) => ctx.raw === Math.max(...cumulative) || ctx.raw === Math.min(...cumulative) ? 6 : 3,
+        pointBackgroundColor: (ctx) => ctx.raw < 0 ? '#ef4444' : lineColor,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
+        tension: 0.4,
+        fill: 'origin'
+      }]
+    };
+    trend12CumOptions.value = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...baseTooltip(isDark),
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              return ` Cumulativo: ${v >= 0 ? '+' : ''}€ ${Math.round(v).toLocaleString('it-IT')}`;
+            }
+          }
+        }
+      },
+      scales: baseScales(isDark)
+    };
+
+    // ── Summary ──
+    const validInc = incomes.filter(v => v > 0);
+    const validExp = expenses.filter(v => v > 0);
+    const avgIncome  = validInc.length ? validInc.reduce((a,b) => a+b, 0) / validInc.length : 0;
+    const avgExpense = validExp.length ? validExp.reduce((a,b) => a+b, 0) / validExp.length : 0;
+    const bestIdx    = nets.indexOf(Math.max(...nets));
+    const worstIdx   = nets.indexOf(Math.min(...nets));
+    trendSummary.value = { avgIncome, avgExpense, bestMonth: labels[bestIdx] || '-', worstMonth: labels[worstIdx] || '-' };
+
+  } catch(e) { console.error('loadTrend12:', e); }
+};
+
+// ══════════════════════════════════════════════
+// STORICO CUMULATIVO
+// ══════════════════════════════════════════════
+const storicoData   = ref(null);
+const storicoOptions = ref({});
+const storicoSummary = ref({ totalNet: 0, maxCumulative: 0, months: 0, avgMonthly: 0 });
+
+const loadStorico = () => {
+  if (!dbInstance) return;
+  try {
+    // Prendi tutti i mesi distinti dal db
+    const res = dbInstance.exec(`
+      SELECT
+        CAST(strftime('%Y', datetime(CAST(ZDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as yr,
+        CAST(strftime('%m', datetime(CAST(ZDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as mo,
+        SUM(CASE WHEN DO_TYPE=0 THEN ZMONEY ELSE 0 END) as inc,
+        SUM(CASE WHEN DO_TYPE=1 THEN ZMONEY ELSE 0 END) as exp
+      FROM INOUTCOME
+      GROUP BY yr, mo
+      ORDER BY yr, mo
+    `);
+
+    if (!res.length || !res[0].values.length) { storicoData.value = null; return; }
+
+    const rows = res[0].values;
+    const labels = [], cumulative = [], monthly = [];
+    let cum = 0;
+    rows.forEach(([yr, mo, inc, exp]) => {
+      const net = (inc || 0) - (exp || 0);
+      cum += net;
+      labels.push(MESI[mo - 1] + ' ' + String(yr).slice(2));
+      monthly.push(net);
+      cumulative.push(cum);
+    });
+
+    const isDark = theme.value === 'dark';
+
+    storicoData.value = {
+      labels,
+      datasets: [
+        {
+          label: 'Netto Mensile',
+          data: monthly,
+          borderColor: isDark ? '#64748b' : '#cbd5e1',
+          backgroundColor: isDark ? 'rgba(100,116,139,0.2)' : 'rgba(203,213,225,0.3)',
+          borderWidth: 1.5,
+          pointRadius: 2, pointHoverRadius: 4,
+          tension: 0.2, fill: false,
+          yAxisID: 'yMonthly'
+        },
+        {
+          label: 'Cumulativo',
+          data: cumulative,
+          borderColor: '#8b5cf6',
+          backgroundColor: isDark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.10)',
+          borderWidth: 3,
+          pointRadius: 3, pointHoverRadius: 6,
+          pointBackgroundColor: '#8b5cf6',
+          tension: 0.4, fill: true,
+          yAxisID: 'yCumulative'
+        }
+      ]
+    };
+
+    storicoOptions.value = buildLineOptions(isDark, {
+      yMonthly: {
+        type: 'linear', position: 'right',
+        grid: { display: false },
+        border: { display: false },
+        ticks: {
+          font: { size: 10, family: 'Inter, sans-serif' },
+          color: isDark ? '#475569' : '#cbd5e1',
+          callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+        }
+      },
+      yCumulative: {
+        type: 'linear', position: 'left',
+        grace: '10%',
+        border: { display: false },
+        grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+        ticks: {
+          font: { size: 11, family: 'Inter, sans-serif' },
+          color: isDark ? '#64748b' : '#94a3b8',
+          callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(1)+'k' : v}`
+        }
+      }
+    });
+
+    // Summary
+    const totalNet = cumulative[cumulative.length - 1] || 0;
+    const maxCumulative = Math.max(...cumulative);
+    const validMonthly = monthly.filter(v => v !== 0);
+    storicoSummary.value = {
+      totalNet, maxCumulative,
+      months: rows.length,
+      avgMonthly: validMonthly.length ? validMonthly.reduce((a,b) => a+b,0) / validMonthly.length : 0
+    };
+  } catch(e) { console.error('loadStorico:', e); }
+};
+
+// ══════════════════════════════════════════════
+// DETTAGLIO MESE
+// ══════════════════════════════════════════════
+const dettaglioMonth = ref('');
+const dettaglioMonthOptions = ref([]);
+const dettaglioData = ref(null);
+const dettaglioOptions = ref({});
+const dettaglioStats = ref({ income: 0, expense: 0, net: 0 });
+
+const buildDettaglioOptions = () => {
+  const isDark = theme.value === 'dark';
+  dettaglioOptions.value = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: isDark ? 'rgba(28,27,25,0.95)' : 'rgba(15,23,42,0.95)',
+        titleColor: isDark ? '#94a3b8' : '#cbd5e1',
+        bodyColor: '#f1f5f9',
+        padding: 12, cornerRadius: 8,
+        callbacks: { label: (ctx) => ` € ${Math.round(ctx.raw).toLocaleString('it-IT')}` }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+        border: { display: false },
+        ticks: {
+          font: { size: 10, family: 'Inter, sans-serif' },
+          color: isDark ? '#64748b' : '#94a3b8',
+          callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+        }
+      },
+      y: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: {
+          font: { size: 11, weight: '600', family: 'Inter, sans-serif' },
+          color: isDark ? '#94a3b8' : '#475569'
+        }
+      }
+    }
+  };
+
+  // Popola selettore mesi
+  const now = new Date();
+  const opts = [];
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const lbl = MESI[d.getMonth()] + ' ' + d.getFullYear();
+    opts.push({ value: val, label: lbl });
+  }
+  dettaglioMonthOptions.value = opts;
+  if (!dettaglioMonth.value && opts.length) dettaglioMonth.value = opts[0].value;
+};
+
+const loadDettaglio = () => {
+  if (!dbInstance || !dettaglioMonth.value) return;
+  try {
+    const [y, m] = dettaglioMonth.value.split('-').map(Number);
+    const start = new Date(y, m - 1, 1).getTime();
+    const end   = new Date(y, m, 0, 23, 59, 59, 999).getTime();
+    const isDark = theme.value === 'dark';
+
+    // Helper sicuro
+    const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
+
+    // Prova 1: JOIN con CATEGORY
+    let expRows = safeExec(`
+      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) >= ${start} AND CAST(i.ZDATE AS REAL) <= ${end}
+        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
+      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+    `);
+
+    // Prova 2: fallback su WDATE se ZDATE non ha dati
+    if (!expRows.length) {
+      expRows = safeExec(`
+        SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+        FROM INOUTCOME i
+        LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+        WHERE i.DO_TYPE = 1
+          AND CAST(i.WDATE AS REAL) >= ${start} AND CAST(i.WDATE AS REAL) <= ${end}
+          AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
+        GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+      `);
+    }
+
+    // Prova 3: fallback su NIC_NAME di ASSETS senza JOIN CATEGORY
+    if (!expRows.length) {
+      expRows = safeExec(`
+        SELECT COALESCE(a.NIC_NAME, 'Altro') as cat, SUM(i.ZMONEY) as tot
+        FROM INOUTCOME i
+        LEFT JOIN ASSETS a ON i.assetUid = a.uid
+        WHERE i.DO_TYPE = 1
+          AND CAST(i.ZDATE AS REAL) >= ${start} AND CAST(i.ZDATE AS REAL) <= ${end}
+        GROUP BY a.uid ORDER BY tot DESC LIMIT 10
+      `);
+    }
+
+    // Prova 4: fallback ultra-safe senza join
+    if (!expRows.length) {
+      expRows = safeExec(`
+        SELECT 'Uscita' as cat, SUM(ZMONEY) as tot
+        FROM INOUTCOME
+        WHERE DO_TYPE = 1
+          AND CAST(ZDATE AS REAL) >= ${start} AND CAST(ZDATE AS REAL) <= ${end}
+      `);
+    }
+
+    // Totali
+    const totalInc = safeExec(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=0 AND CAST(ZDATE AS REAL) >= ${start} AND CAST(ZDATE AS REAL) <= ${end}`).reduce((s,r) => s+(r[0]||0), 0);
+    const totalExp = expRows.reduce((s,[,v]) => s + (Number(v)||0), 0);
+    dettaglioStats.value = { income: totalInc, expense: totalExp, net: totalInc - totalExp };
+
+    if (!expRows.length) { dettaglioData.value = null; return; }
+
+    const labels = expRows.map(([cat]) => cat || 'Altro');
+    const values = expRows.map(([,v]) => Number(v) || 0);
+    const maxVal = Math.max(...values);
+
+    // Colori graduali per le barre (dal più scuro al più chiaro)
+    const bgColors = values.map((v, i) => {
+      const alpha = isDark ? 0.35 + (0.35 * (1 - i / values.length)) : 0.30 + (0.30 * (1 - i / values.length));
+      return `rgba(239,68,68,${alpha.toFixed(2)})`;
+    });
+
+    dettaglioData.value = {
+      labels,
+      datasets: [{
+        label: 'Uscite',
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: isDark ? '#dc2626' : '#991b1b',
+        borderWidth: 1.5,
+        borderRadius: 5,
+        borderSkipped: false
+      }]
+    };
+
+    buildDettaglioOptions();
+  } catch(e) { console.error('loadDettaglio:', e); dettaglioData.value = null; }
+};
+
+// Carica dettaglio quando si apre il tab
+watch(activeBottomTab, (tab) => {
+  if (tab === 'dettaglio' && dbInstance) {
+    if (!dettaglioMonthOptions.value.length) buildDettaglioOptions();
+    if (!dettaglioData.value) loadDettaglio();
+  }
+});
 </script>
 
 <style scoped>
@@ -806,6 +1564,25 @@ const refreshData = () => {
 
 
 /* ── CASHFLOW GLASS PANEL ── */
+/* Tab interni al cashflow panel */
+.cf-tablist {
+  display: flex; gap: 0; padding: var(--s2) var(--s4) 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent !important;
+}
+.cf-tab {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: var(--s2) var(--s4); border-radius: var(--r-md) var(--r-md) 0 0;
+  color: var(--text-muted); cursor: pointer; border: none; background: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 160ms, border-color 160ms;
+}
+.cf-tab:hover { color: var(--text); }
+:deep(.p-tab-active).cf-tab { color: var(--primary); border-bottom-color: var(--primary); }
+.topcat-wrap { height: auto !important; min-height: 260px; max-height: 340px; }
+/* ---*/
+
 .glass-panel {
   background: rgba(255,255,255,0.55);
   backdrop-filter: blur(12px);
@@ -841,19 +1618,7 @@ const refreshData = () => {
 :deep(.p-tabpanels) { padding: 0; background: var(--surface) !important; }
 :deep(.p-tabpanel) { padding: var(--s5); }
 
-.placeholder-state {
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; padding: var(--s12) var(--s8); gap: var(--s3);
-}
-.placeholder-icon { color: var(--text-faint); margin-bottom: var(--s2); }
-.placeholder-state h3 { font-size: 16px; font-weight: 700; color: var(--text); }
-.placeholder-state p { font-size: 13px; color: var(--text-muted); max-width: 36ch; line-height: 1.6; }
-.coming-soon-badge {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-  background: #dbeafe; color: #1d4ed8;
-  padding: 4px 10px; border-radius: var(--r-sm); margin-top: var(--s1);
-}
-.mm-app[data-theme="dark"] .coming-soon-badge { background: rgba(59,130,246,0.15); color: #93c5fd; }
+
 
 /* ════════════════════════════════
    FOOTER
@@ -868,4 +1633,72 @@ const refreshData = () => {
 .footer-file { font-weight: 600; color: var(--text-muted); font-family: monospace; }
 .footer-dot { opacity: 0.4; }
 .footer-error { color: #e11d48; }
+
+/* ════════════════════════════════
+   GRAFICI ANALISI — tab body
+════════════════════════════════ */
+.chart-tab-body { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s4); }
+.chart-wrap-tall { height: 280px; position: relative; }
+@media (min-width: 640px) { .chart-wrap-tall { height: 320px; } }
+
+/* Trend summary bar */
+.trend-summary-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s2);
+}
+@media (min-width: 480px) { .trend-summary-row { grid-template-columns: repeat(4, 1fr); } }
+
+.trend-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface-2); border-radius: var(--r-md);
+  padding: var(--s3) var(--s3); border: 1px solid var(--border);
+}
+.trend-stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.trend-stat-val { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums; }
+.income-text { color: #059669; }
+.expense-text { color: #dc2626; }
+.net-text { color: #2563eb; }
+.mm-app[data-theme="dark"] .income-text { color: #34d399; }
+.mm-app[data-theme="dark"] .expense-text { color: #f87171; }
+.mm-app[data-theme="dark"] .net-text { color: #60a5fa; }
+
+/* Dettaglio mese */
+.dettaglio-toolbar {
+  display: flex; align-items: center; gap: var(--s3);
+  flex-wrap: wrap;
+}
+.dettaglio-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.dettaglio-select {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 6px 12px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  cursor: pointer; outline: none; font-family: var(--font);
+}
+.dettaglio-grid { display: flex; flex-direction: column; gap: var(--s4); }
+.dettaglio-kpi-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2);
+}
+.dettaglio-kpi {
+  padding: var(--s3); border-radius: var(--r-md);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.dettaglio-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+.dettaglio-kpi-val { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.income-bg { background: #d1fae5; color: #065f46; }
+.expense-bg { background: #fee2e2; color: #991b1b; }
+.net-bg { background: #dbeafe; color: #1e3a8a; }
+.neg-bg { background: #ffedd5; color: #9a3412; }
+.mm-app[data-theme="dark"] .income-bg  { background: rgba(16,185,129,0.15); color: #34d399; }
+.mm-app[data-theme="dark"] .expense-bg { background: rgba(239,68,68,0.15); color: #f87171; }
+.mm-app[data-theme="dark"] .net-bg     { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.mm-app[data-theme="dark"] .neg-bg     { background: rgba(234,88,12,0.15);  color: #fb923c; }
+
+/* ── Trend: due grafici impilati ── */
+.trend-chart-block { display: flex; flex-direction: column; gap: var(--s2); }
+.trend-chart-label {
+  display: flex; align-items: center; gap: var(--s2);
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted);
+}
 </style>
