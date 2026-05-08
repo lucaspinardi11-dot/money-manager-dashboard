@@ -42,6 +42,13 @@
             <svg v-if="theme === 'dark'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/></svg>
             <svg v-else viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17.5 11.5A7.5 7.5 0 1 1 8.5 2.5a5.5 5.5 0 1 0 9 9z"/></svg>
           </button>
+          <div v-if="googleUser" class="user-chip">
+            <img :src="googleUser.picture" :alt="googleUser.name" class="user-avatar" referrerpolicy="no-referrer" />
+            <span class="user-name">{{ googleUser.given_name || googleUser.name }}</span>
+            <button class="btn-logout" @click="handleLogout" title="Esci">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M13 3h4v14h-4M8 7l-4 3 4 3M4 10h9"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -49,8 +56,26 @@
     <!-- ═══ MAIN ═══ -->
     <main class="mm-main">
 
+      <!-- ── LOGIN SCREEN ── -->
+      <div v-if="!googleUser" class="upload-screen">
+        <div class="upload-card" style="max-width:360px">
+          <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
+            <svg style="width:52px;height:52px;color:var(--color-primary, #01696f)" viewBox="0 0 32 32" fill="none">
+              <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
+              <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
+              <circle cx="10" cy="20" r="2" fill="currentColor"/>
+              <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <h2 class="upload-title">Money Manager</h2>
+          <p class="upload-desc">Accedi con Google per continuare alla dashboard.</p>
+          <div id="google-signin-btn" style="display:flex;justify-content:center;margin:1.5rem 0 0.5rem;min-height:44px"></div>
+          <p style="font-size:12px;color:var(--text-faint);text-align:center;margin-top:0.5rem">🔒 I tuoi dati rimangono solo sul tuo dispositivo.</p>
+        </div>
+      </div>
+
       <!-- ── UPLOAD SCREEN ── -->
-      <div v-if="!fileLoaded" class="upload-screen">
+      <div v-else-if="!fileLoaded" class="upload-screen">
         <div class="upload-card">
           <div class="upload-icon-wrap">
             <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
@@ -717,7 +742,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import initSqlJs from 'sql.js';
 import Chart from 'primevue/chart';
 import Tabs from 'primevue/tabs';
@@ -729,6 +754,50 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import { Chart as ChartJS } from 'chart.js';
 
 ChartJS.register(annotationPlugin);
+
+// ── GOOGLE AUTH ──
+const GOOGLE_CLIENT_ID = '1045116249963-98lmpknvv2rcmi347cn87ju720182kjn.apps.googleusercontent.com';
+const googleUser = ref(null);
+
+const handleLogout = () => {
+  googleUser.value = null;
+  fileLoaded.value = false;      // ← nasconde la dashboard
+  loadedFileName.value = '';
+  statusMessage.value = 'In attesa del file...';
+  isError.value = false;
+  dbInstance = null;             // ← libera il database
+  setTimeout(() => initGoogleSignIn(), 150);
+};
+
+const initGoogleSignIn = () => {
+  if (!window.google?.accounts) return;
+  window.google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: (response) => {
+      try {
+        const payload = JSON.parse(atob(response.credential.split('.')[1]));
+        googleUser.value = { name: payload.name, given_name: payload.given_name, picture: payload.picture, email: payload.email };
+      } catch (e) { console.error('Errore token Google:', e); }
+    },
+    auto_select: false,
+    cancel_on_tap_outside: true,
+  });
+  const btnEl = document.getElementById('google-signin-btn');
+  if (btnEl) {
+    window.google.accounts.id.renderButton(btnEl, {
+      theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', locale: 'it', width: 280,
+    });
+  }
+  window.google.accounts.id.prompt();
+};
+
+onMounted(() => {
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.async = true; script.defer = true;
+  script.onload = () => initGoogleSignIn();
+  document.head.appendChild(script);
+});
 
 // ── TEMA ──
 const theme = ref(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -3467,4 +3536,10 @@ watch(activeBottomTab, (tab) => {
 .ric-empty { font-size: 13px; color: var(--text-faint); padding: var(--s4) 0; text-align: center; }
 @media(max-width:640px){ .abb-row { grid-template-columns: 1fr 1fr; } .abb-row > :nth-child(3), .abb-row > :nth-child(4) { display: none; } }
 
+.user-chip { display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 3px; }
+.user-avatar { width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border); }
+.user-name { font-size:13px;font-weight:600;color:var(--text);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+@media (max-width:479px) { .user-name { display:none; } }
+.btn-logout { display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:transparent;border:none;cursor:pointer;color:var(--text-muted); }
+.btn-logout:hover { background:#fee2e2;color:#dc2626; }
 </style>
