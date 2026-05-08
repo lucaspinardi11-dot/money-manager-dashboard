@@ -190,9 +190,9 @@
           <div class="panel cashflow-panel glass-panel">
             <Tabs :value="activeCfTab" @update:value="activeCfTab = $event">
               <TabList class="cf-tablist">
-                <Tab value="cascata" class="cf-tab">
+                <Tab value="cashflow" class="cf-tab">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="4" width="3" height="8" rx="1"/><rect x="7" y="2" width="3" height="10" rx="1"/><rect x="12" y="6" width="3" height="6" rx="1"/></svg>
-                  Cascata
+                  CashFlow
                 </Tab>
                 <Tab value="topcat" class="cf-tab">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 4h10M3 8h7M3 12h5"/></svg>
@@ -200,7 +200,7 @@
                 </Tab>
               </TabList>
               <TabPanels>
-                <TabPanel value="cascata">
+                <TabPanel value="cashflow">
                   <div class="chart-wrap">
                     <Chart
                       v-if="waterfallData"
@@ -283,21 +283,10 @@
                   <div class="trend-chart-block">
                     <div class="trend-chart-label">
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="8" width="4" height="6" rx="1"/><rect x="10" y="4" width="4" height="10" rx="1"/></svg>
-                      Entrate vs Uscite
+                      Entrate vs Uscite · Netto Cumulato
                     </div>
                     <div class="chart-wrap-tall">
                       <Chart type="bar" :data="trend12BarData" :options="trend12BarOptions" style="height:100%;width:100%" />
-                    </div>
-                  </div>
-
-                  <!-- Grafico 2: Risparmio cumulativo 12 mesi -->
-                  <div class="trend-chart-block">
-                    <div class="trend-chart-label">
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M2 13 C4 10 6 11 8 8 S12 3 14 3"/><path d="M2 13 L14 3 L14 13 Z" fill="currentColor" opacity="0.15"/></svg>
-                      Percorso del Risparmio
-                    </div>
-                    <div class="chart-wrap-tall">
-                      <Chart type="line" :data="trend12CumData" :options="trend12CumOptions" style="height:100%;width:100%" />
                     </div>
                   </div>
                 </div>
@@ -549,7 +538,7 @@ const waterfallConnector = {
 const waterfallPlugins = ref([waterfallConnector]);
 
 // ── CASHFLOW TAB ──
-const activeCfTab = ref('cascata');
+const activeCfTab = ref('cashflow');
 
 // ── TOP CATEGORIE ──
 const topCatData    = ref(null);
@@ -567,28 +556,41 @@ const loadTopCat = () => {
 
     const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
 
-    // Prova con JOIN CATEGORY
+    // Top Categorie: ctguid punta alla figlia (s), si risale al padre (c) via s.puid
     let rows = safeExec(`
-      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      SELECT s.name as cat, SUM(i.ZMONEY) as tot
       FROM INOUTCOME i
-      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      LEFT JOIN ZCATEGORY c ON c.uid = s.puid
       WHERE i.DO_TYPE = 1
         AND CAST(i.ZDATE AS REAL) >= ${startMs} AND CAST(i.ZDATE AS REAL) <= ${endMs}
-        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
-      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+        AND s.name IS NOT NULL AND s.name != ''
+      GROUP BY s.uid
+      ORDER BY tot DESC LIMIT 10
     `);
-
     // Fallback WDATE
     if (!rows.length) rows = safeExec(`
-      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      SELECT s.name as cat, SUM(i.ZMONEY) as tot
       FROM INOUTCOME i
-      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      LEFT JOIN ZCATEGORY c ON c.uid = s.puid
       WHERE i.DO_TYPE = 1
         AND CAST(i.WDATE AS REAL) >= ${startMs} AND CAST(i.WDATE AS REAL) <= ${endMs}
-        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
-      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+        AND s.name IS NOT NULL AND s.name != ''
+      GROUP BY s.uid
+      ORDER BY tot DESC LIMIT 10
     `);
-
+    // Fallback: tutte le ZCATEGORY via ctguid senza gerarchia
+    if (!rows.length) rows = safeExec(`
+      SELECT s.name as cat, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) >= ${startMs} AND CAST(i.ZDATE AS REAL) <= ${endMs}
+        AND s.name IS NOT NULL AND s.name != ''
+      GROUP BY s.uid
+      ORDER BY tot DESC LIMIT 10
+    `);
     // Fallback NIC_NAME
     if (!rows.length) rows = safeExec(`
       SELECT COALESCE(a.NIC_NAME, 'Altro') as cat, SUM(i.ZMONEY) as tot
@@ -770,8 +772,7 @@ const refreshData = () => {
 // ══════════════════════════════════════════════
 const trend12BarData  = ref(null);
 const trend12BarOptions = ref({});
-const trend12CumData  = ref(null);
-const trend12CumOptions = ref({});
+
 const trendSummary = ref({ avgIncome: 0, avgExpense: 0, bestMonth: '-', worstMonth: '-' });
 
 const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
@@ -842,6 +843,10 @@ const loadTrend12 = () => {
       nets.push(inc - exp);
     });
 
+    // Netto cumulato
+    let _cum = 0;
+    const cumulative = nets.map(v => { _cum += v; return _cum; });
+
     const isDark = theme.value === 'dark';
     const labels = months.map(mo => mo.label);
 
@@ -873,19 +878,22 @@ const loadTrend12 = () => {
         },
         {
           type: 'line',
-          label: 'Netto',
-          data: nets,
-          borderColor: isDark ? 'rgba(148,163,184,0.55)' : 'rgba(100,116,139,0.45)',
+          label: 'Netto Cumulato',
+          data: cumulative,
+          borderColor: isDark ? 'rgba(148,163,184,0.75)' : 'rgba(100,116,139,0.70)',
           backgroundColor: 'transparent',
-          borderWidth: 1.5,
-          borderDash: [4, 3],
+          borderWidth: 2,
+          borderDash: [5, 3],
           pointRadius: 3,
-          pointBackgroundColor: (ctx) => nets[ctx.dataIndex] >= 0
-            ? (isDark ? 'rgba(16,185,129,0.7)' : 'rgba(5,150,105,0.7)')
-            : (isDark ? 'rgba(239,68,68,0.7)'  : 'rgba(220,38,38,0.7)'),
+          pointHoverRadius: 5,
+          pointBackgroundColor: cumulative.map(v =>
+            v >= 0
+              ? (isDark ? 'rgba(16,185,129,0.85)' : 'rgba(5,150,105,0.85)')
+              : (isDark ? 'rgba(239,68,68,0.85)'  : 'rgba(220,38,38,0.85)')
+          ),
           pointBorderWidth: 0,
-          tension: 0.35,
-          yAxisID: 'y',
+          tension: 0.32,
+          yAxisID: 'yCum',
           order: 0
         }
       ]
@@ -902,26 +910,17 @@ const loadTrend12 = () => {
             font: { size: 11, family: 'Inter, sans-serif', weight: '600' },
             color: isDark ? '#94a3b8' : '#64748b',
             padding: 12, usePointStyle: true,
-            filter: (item) => item.text !== 'Netto',
             generateLabels: (chart) => {
-              const def = chart.data.datasets.map((ds, i) => ({
+              return chart.data.datasets.map((ds, i) => ({
                 text: ds.label,
-                fillStyle: Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor,
+                fillStyle: ds.type === 'line' ? 'transparent' : (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor),
                 strokeStyle: ds.borderColor,
+                lineDash: ds.type === 'line' ? [5, 3] : [],
                 lineWidth: ds.borderWidth,
                 hidden: !chart.isDatasetVisible(i),
                 datasetIndex: i,
                 pointStyle: ds.type === 'line' ? 'line' : 'rectRounded'
               }));
-              // Override label netto: linea tratteggiata grigia
-              const nettoItem = def.find(d => d.text === 'Netto');
-              if (nettoItem) {
-                nettoItem.fillStyle = 'transparent';
-                nettoItem.strokeStyle = isDark ? 'rgba(148,163,184,0.6)' : 'rgba(100,116,139,0.5)';
-                nettoItem.lineDash = [4, 3];
-                nettoItem.text = 'Netto';
-              }
-              return def;
             }
           }
         },
@@ -929,60 +928,63 @@ const loadTrend12 = () => {
           ...baseTooltip(isDark),
           callbacks: {
             label: (ctx) => {
-              const v = ctx.raw;
-              if (ctx.dataset.label === 'Netto') return ` Netto: ${v >= 0 ? '+' : ''}€ ${Math.round(v).toLocaleString('it-IT')}`;
+              const v = Number(ctx.raw) || 0;
+              if (ctx.dataset.label === 'Netto Cumulato')
+                return ` Netto cumulato: ${v >= 0 ? '+' : ''}€ ${Math.round(v).toLocaleString('it-IT')}`;
               return ` ${ctx.dataset.label}: € ${Math.round(v).toLocaleString('it-IT')}`;
             }
           }
         }
       },
-      scales: baseScales(isDark)
-    };
-
-    // ── Grafico 2: area cumulativa risparmio ──
-    let cum = 0;
-    const cumulative = nets.map(n => { cum += n; return cum; });
-    // Colora il fill in base al segno finale
-    const isPositive = cumulative[cumulative.length - 1] >= 0;
-    const fillColor  = isPositive
-      ? (isDark ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.12)')
-      : (isDark ? 'rgba(239,68,68,0.18)'  : 'rgba(239,68,68,0.12)');
-    const lineColor  = isPositive ? '#3b82f6' : '#ef4444';
-
-    trend12CumData.value = {
-      labels,
-      datasets: [{
-        label: 'Risparmio Cumulativo',
-        data: cumulative,
-        borderColor: lineColor,
-        backgroundColor: fillColor,
-        borderWidth: 2.5,
-        pointRadius: (ctx) => ctx.raw === Math.max(...cumulative) || ctx.raw === Math.min(...cumulative) ? 6 : 3,
-        pointBackgroundColor: (ctx) => ctx.raw < 0 ? '#ef4444' : lineColor,
-        pointBorderColor: '#fff',
-        pointBorderWidth: 1.5,
-        tension: 0.4,
-        fill: 'origin'
-      }]
-    };
-    trend12CumOptions.value = {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...baseTooltip(isDark),
-          callbacks: {
-            label: (ctx) => {
-              const v = ctx.raw;
-              return ` Cumulativo: ${v >= 0 ? '+' : ''}€ ${Math.round(v).toLocaleString('it-IT')}`;
-            }
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: {
+            font: { size: 10, weight: '600', family: 'Inter, sans-serif' },
+            color: isDark ? '#64748b' : '#94a3b8',
+            maxRotation: 0
+          }
+        },
+        y: {
+          position: 'left',
+          beginAtZero: true,
+          grace: '10%',
+          border: { display: false },
+          grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+          ticks: {
+            font: { size: 10, family: 'Inter, sans-serif' },
+            color: isDark ? '#64748b' : '#94a3b8',
+            callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+          },
+          title: {
+            display: true,
+            text: 'Mensile',
+            color: isDark ? '#475569' : '#94a3b8',
+            font: { size: 9, weight: '600', family: 'Inter, sans-serif' }
+          }
+        },
+        yCum: {
+          position: 'right',
+          grace: '10%',
+          border: { display: false },
+          grid: { display: false },
+          ticks: {
+            font: { size: 10, family: 'Inter, sans-serif' },
+            color: isDark ? '#64748b' : '#94a3b8',
+            callback: (v) => `€ ${v >= 1000 ? (v/1000).toFixed(1)+'k' : v < -1000 ? (v/1000).toFixed(1)+'k' : v}`
+          },
+          title: {
+            display: true,
+            text: 'Cumulato',
+            color: isDark ? '#475569' : '#94a3b8',
+            font: { size: 9, weight: '600', family: 'Inter, sans-serif' }
           }
         }
-      },
-      scales: baseScales(isDark)
+      }
     };
+
+
 
     // ── Summary ──
     const validInc = incomes.filter(v => v > 0);
@@ -1167,31 +1169,46 @@ const loadDettaglio = () => {
     // Helper sicuro
     const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
 
-    // Prova 1: JOIN con CATEGORY
+    // Prova 1: ctguid → sottocategoria figlia (s), risale al padre (c) — ZDATE
     let expRows = safeExec(`
-      SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+      SELECT s.name as cat, SUM(i.ZMONEY) as tot
       FROM INOUTCOME i
-      LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      LEFT JOIN ZCATEGORY c ON c.uid = s.puid
       WHERE i.DO_TYPE = 1
         AND CAST(i.ZDATE AS REAL) >= ${start} AND CAST(i.ZDATE AS REAL) <= ${end}
-        AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
-      GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+        AND s.name IS NOT NULL AND s.name != ''
+      GROUP BY s.uid ORDER BY tot DESC LIMIT 10
     `);
 
-    // Prova 2: fallback su WDATE se ZDATE non ha dati
+    // Prova 2: fallback WDATE
     if (!expRows.length) {
       expRows = safeExec(`
-        SELECT c.ZNAME as cat, SUM(i.ZMONEY) as tot
+        SELECT s.name as cat, SUM(i.ZMONEY) as tot
         FROM INOUTCOME i
-        LEFT JOIN CATEGORY c ON i.categoryUid = c.uid
+        LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+        LEFT JOIN ZCATEGORY c ON c.uid = s.puid
         WHERE i.DO_TYPE = 1
           AND CAST(i.WDATE AS REAL) >= ${start} AND CAST(i.WDATE AS REAL) <= ${end}
-          AND c.ZNAME IS NOT NULL AND c.ZNAME != ''
-        GROUP BY c.ZNAME ORDER BY tot DESC LIMIT 10
+          AND s.name IS NOT NULL AND s.name != ''
+        GROUP BY s.uid ORDER BY tot DESC LIMIT 10
       `);
     }
 
-    // Prova 3: fallback su NIC_NAME di ASSETS senza JOIN CATEGORY
+    // Prova 3: fallback ZCATEGORY senza gerarchia
+    if (!expRows.length) {
+      expRows = safeExec(`
+        SELECT s.name as cat, SUM(i.ZMONEY) as tot
+        FROM INOUTCOME i
+        LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+        WHERE i.DO_TYPE = 1
+          AND CAST(i.ZDATE AS REAL) >= ${start} AND CAST(i.ZDATE AS REAL) <= ${end}
+          AND s.name IS NOT NULL AND s.name != ''
+        GROUP BY s.uid ORDER BY tot DESC LIMIT 10
+      `);
+    }
+
+    // Prova 4: fallback NIC_NAME
     if (!expRows.length) {
       expRows = safeExec(`
         SELECT COALESCE(a.NIC_NAME, 'Altro') as cat, SUM(i.ZMONEY) as tot
@@ -1200,16 +1217,6 @@ const loadDettaglio = () => {
         WHERE i.DO_TYPE = 1
           AND CAST(i.ZDATE AS REAL) >= ${start} AND CAST(i.ZDATE AS REAL) <= ${end}
         GROUP BY a.uid ORDER BY tot DESC LIMIT 10
-      `);
-    }
-
-    // Prova 4: fallback ultra-safe senza join
-    if (!expRows.length) {
-      expRows = safeExec(`
-        SELECT 'Uscita' as cat, SUM(ZMONEY) as tot
-        FROM INOUTCOME
-        WHERE DO_TYPE = 1
-          AND CAST(ZDATE AS REAL) >= ${start} AND CAST(ZDATE AS REAL) <= ${end}
       `);
     }
 
@@ -1476,6 +1483,7 @@ watch(activeBottomTab, (tab) => {
 .mid-grid {
   display: grid; grid-template-columns: 1fr;
   gap: 1rem; margin-bottom: 1rem;
+  align-items: stretch;
 }
 @media (min-width: 680px) { .mid-grid { grid-template-columns: 1fr 1fr; } }
 
@@ -1580,7 +1588,7 @@ watch(activeBottomTab, (tab) => {
 }
 .cf-tab:hover { color: var(--text); }
 :deep(.p-tab-active).cf-tab { color: var(--primary); border-bottom-color: var(--primary); }
-.topcat-wrap { height: auto !important; min-height: 260px; max-height: 340px; }
+.topcat-wrap { height: 100% !important; min-height: 260px; }
 /* ---*/
 
 .glass-panel {
@@ -1595,7 +1603,11 @@ watch(activeBottomTab, (tab) => {
   border: 1px solid rgba(255,255,255,0.07);
   box-shadow: 0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.cashflow-panel .chart-wrap { height: 260px; padding: var(--s3) var(--s4) var(--s4); position: relative; }
+.cashflow-panel { display: flex; flex-direction: column; }
+.cashflow-panel :deep(.p-tabs) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.cashflow-panel :deep(.p-tabpanels) { flex: 1; min-height: 0; padding: 0 !important; }
+.cashflow-panel :deep(.p-tabpanel) { height: 100%; padding: 0 !important; }
+.cashflow-panel .chart-wrap { height: 100%; min-height: 260px; padding: var(--s3) var(--s4) var(--s4); position: relative; }
 .chart-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 100%; gap: var(--s3); color: var(--text-muted);
