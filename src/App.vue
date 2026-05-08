@@ -21,10 +21,18 @@
             <select class="period-select" v-model="selectedPeriod" @change="refreshData" aria-label="Seleziona periodo">
               <option value="current_month">Questo Mese</option>
               <option value="last_month">Mese Scorso</option>
-              <option value="ytd">Anno in Corso</option>
+              <option value="ytd">Da Inizio Anno</option>
               <option value="all">Tutto</option>
+              <option value="custom">Personalizzato…</option>
             </select>
           </div>
+          <Transition name="custom-fade">
+            <div v-if="showCustom && fileLoaded" class="custom-range">
+              <input type="date" v-model="customStart" @change="refreshData" class="date-input" aria-label="Data inizio" />
+              <span class="date-sep">→</span>
+              <input type="date" v-model="customEnd" @change="refreshData" class="date-input" aria-label="Data fine" />
+            </div>
+          </Transition>
           <label v-if="fileLoaded" class="btn-update" title="Cambia file database">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 10a6 6 0 1 0 6-6"/><path d="M4 6v4h4"/></svg>
             <span class="btn-update-text">Aggiorna</span>
@@ -173,18 +181,44 @@
                 </div>
 
                 <div class="budget-savings-row">
-                  <div class="savings-left">
-                    <span class="savings-label">🎯 Target Risparmio</span>
-                    <span class="savings-amount">€ {{ fmt0(currentStats.income * targetSavingsPct / 100) }}</span>
+                  <!-- Target -->
+                  <div class="savings-kpi-block">
+                    <span class="skb-label">🎯 Target</span>
+                    <span class="skb-value skb-target">€ {{ fmt0(currentStats.income * targetSavingsPct / 100) }}</span>
+                    <span class="skb-sub">{{ targetSavingsPct }}% del reddito</span>
                   </div>
-                  <div class="savings-right">
-                    <span class="target-big">{{ targetSavingsPct }}%</span>
-                    <span class="target-note">delle entrate</span>
+                  <!-- Divisore -->
+                  <div class="savings-divider"></div>
+                  <!-- Risparmiato effettivo -->
+                  <div class="savings-kpi-block">
+                    <span class="skb-label">💰 Risparmiato</span>
+                    <span class="skb-value" :class="currentStats.net >= currentStats.income * targetSavingsPct / 100 ? 'skb-ok' : 'skb-warn'">
+                      € {{ fmt0(currentStats.net) }}
+                    </span>
+                    <span class="skb-sub" :class="currentStats.net >= currentStats.income * targetSavingsPct / 100 ? 'skb-ok' : 'skb-warn'">
+                      {{ currentStats.income > 0 ? ((currentStats.net / currentStats.income) * 100).toFixed(1) : '0' }}% del reddito
+                    </span>
+                  </div>
+                  <!-- Divisore -->
+                  <div class="savings-divider"></div>
+                  <!-- Consiglio -->
+                  <div v-if="currentStats.income > 0" class="savings-tip-inline" :class="currentStats.net >= currentStats.income * targetSavingsPct / 100 ? 'sti-ok' : 'sti-warn'">
+                    <template v-if="currentStats.net >= currentStats.income * targetSavingsPct / 100">
+                      <span class="sti-delta">+€ {{ fmt0(currentStats.net - currentStats.income * targetSavingsPct / 100) }}</span>
+                      <span class="sti-msg">puoi ancora spendere questa cifra restando sopra l'obiettivo</span>
+                    </template>
+                    <template v-else>
+                      <span class="sti-delta">-€ {{ fmt0(currentStats.income * targetSavingsPct / 100 - currentStats.net) }}</span>
+                      <span class="sti-msg">da recuperare il mese prossimo per rientrare nel target</span>
+                    </template>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+
+
 
           <!-- CASHFLOW — tab Cascata + Top Categorie -->
           <div class="panel cashflow-panel glass-panel">
@@ -197,6 +231,10 @@
                 <Tab value="topcat" class="cf-tab">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 4h10M3 8h7M3 12h5"/></svg>
                   Top Categorie
+                </Tab>
+                <Tab value="confronto" class="cf-tab">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="5" width="3" height="7" rx="1"/><rect x="7" y="3" width="3" height="9" rx="1"/><rect x="12" y="6" width="3" height="6" rx="1"/><path d="M1 13h14" stroke-width="1.5"/></svg>
+                  Confronto
                 </Tab>
               </TabList>
               <TabPanels>
@@ -231,6 +269,49 @@
                     </div>
                   </div>
                 </TabPanel>
+                <TabPanel value="confronto">
+                  <div class="confronto-wrap">
+                    <div class="confronto-header">
+                      <div class="confronto-toggle">
+                        <button class="ctg-btn" :class="{ active: confrontoMode === 'prev' }" @click="confrontoMode = 'prev'; loadConfronto()">
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M8 2L3 7l5 5"/></svg>
+                          Periodo prec.
+                        </button>
+                        <button class="ctg-btn" :class="{ active: confrontoMode === 'year' }" @click="confrontoMode = 'year'; loadConfronto()">
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M8 2L3 7l5 5M12 2L7 7l5 5"/></svg>
+                          Anno prec.
+                        </button>
+                      </div>
+                      <div class="confronto-range-label" v-if="confrontoPrevLabel">
+                        <span class="crl-prev">{{ confrontoPrevLabel }}</span>
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" opacity="0.4"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+                        <span class="crl-cur">{{ confrontoCurLabel }}</span>
+                      </div>
+                    </div>
+                    <div class="chart-wrap" v-if="confrontoData">
+                      <Chart type="bar" :data="confrontoData" :options="confrontoOptions" style="height:100%;width:100%"/>
+                    </div>
+                    <div v-else class="chart-empty">
+                      <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="20" width="8" height="16" rx="1"/><rect x="16" y="12" width="8" height="24" rx="1"/><rect x="28" y="4" width="8" height="32" rx="1"/></svg>
+                      <p>Nessun dato disponibile</p>
+                    </div>
+                    <div class="confronto-kpis" v-if="confrontoDelta">
+                      <div class="ckpi" :class="confrontoDelta.incDelta >= 0 ? 'ckpi-pos' : 'ckpi-neg'">
+                        <span class="ckpi-label">Entrate</span>
+                        <span class="ckpi-delta">{{ confrontoDelta.incDelta >= 0 ? '+' : '' }}{{ confrontoDelta.incDelta.toFixed(1) }}%</span>
+                      </div>
+                      <div class="ckpi" :class="confrontoDelta.expDelta <= 0 ? 'ckpi-pos' : 'ckpi-neg'">
+                        <span class="ckpi-label">Uscite</span>
+                        <span class="ckpi-delta">{{ confrontoDelta.expDelta >= 0 ? '+' : '' }}{{ confrontoDelta.expDelta.toFixed(1) }}%</span>
+                      </div>
+                      <div class="ckpi" :class="confrontoDelta.netDelta >= 0 ? 'ckpi-pos' : 'ckpi-neg'">
+                        <span class="ckpi-label">Netto</span>
+                        <span class="ckpi-delta">{{ confrontoDelta.netDelta >= 0 ? '+' : '' }}{{ confrontoDelta.netDelta.toFixed(1) }}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </TabPanel>
+              
               </TabPanels>
             </Tabs>
           </div>
@@ -250,8 +331,16 @@
                 Storico Cumulativo
               </Tab>
               <Tab value="dettaglio" class="tab-custom">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="2" y="9" width="3" height="5" rx="1"/><rect x="7" y="5" width="3" height="9" rx="1"/><rect x="12" y="2" width="3" height="12" rx="1"/></svg>
-                Dettaglio Mese
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="2" y="2" width="3" height="3" rx="0.5"/><rect x="7" y="2" width="3" height="3" rx="0.5"/><rect x="12" y="2" width="3" height="3" rx="0.5"/><rect x="2" y="7" width="3" height="3" rx="0.5"/><rect x="7" y="7" width="3" height="3" rx="0.5"/><rect x="12" y="7" width="3" height="3" rx="0.5"/><rect x="2" y="12" width="3" height="3" rx="0.5"/><rect x="7" y="12" width="3" height="3" rx="0.5"/><rect x="12" y="12" width="3" height="3" rx="0.5"/></svg>
+                Heatmap
+              </Tab>
+              <Tab value="anomalie" class="tab-custom">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M8 2v7M8 12v2"/><circle cx="8" cy="13" r="0.5" fill="currentColor"/><path d="M2 14L8 2l6 12H2z"/></svg>
+                Anomalie
+              </Tab>
+              <Tab value="previsioni" class="tab-custom">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M2 12 L5 8 L9 10 L14 4"/><path d="M14 4h-3M14 4v3" stroke-linecap="round"/></svg>
+                Previsioni
               </Tab>
             </TabList>
             <TabPanels>
@@ -302,15 +391,17 @@
                   <div class="trend-summary-row">
                     <div class="trend-stat">
                       <span class="trend-stat-label">Risparmio Totale</span>
-                      <span class="trend-stat-val net-text">€ {{ fmt0(storicoSummary.totalNet) }}</span>
+                      <span class="trend-stat-val" :class="storicoSummary.isAbove ? 'net-text' : 'expense-text'">€ {{ fmt0(storicoSummary.totalNet) }}</span>
                     </div>
                     <div class="trend-stat">
                       <span class="trend-stat-label">Massimo Storico</span>
                       <span class="trend-stat-val income-text">€ {{ fmt0(storicoSummary.maxCumulative) }}</span>
                     </div>
                     <div class="trend-stat">
-                      <span class="trend-stat-label">Mesi Analizzati</span>
-                      <span class="trend-stat-val">{{ storicoSummary.months }}</span>
+                      <span class="trend-stat-label">vs Obiettivo</span>
+                      <span class="trend-stat-val" :class="storicoSummary.isAbove ? 'net-text' : 'expense-text'">
+                        {{ storicoSummary.isAbove ? '+' : '' }}€ {{ fmt0(storicoSummary.deltaVsTarget) }}
+                      </span>
                     </div>
                     <div class="trend-stat">
                       <span class="trend-stat-label">Media Mensile</span>
@@ -329,38 +420,284 @@
 
               <!-- TAB 3: DETTAGLIO MESE -->
               <TabPanel value="dettaglio">
-                <div class="chart-tab-body">
-                  <div class="dettaglio-toolbar">
-                    <label class="dettaglio-label">Seleziona mese:</label>
-                    <select class="dettaglio-select" v-model="dettaglioMonth" @change="loadDettaglio">
-                      <option v-for="m in dettaglioMonthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-                    </select>
+                <div class="heatmap-wrap">
+                  <!-- Toggle Spese / Entrate -->
+                  <div class="heatmap-header">
+                    <div class="heatmap-header-left">
+                      <div class="heatmap-toggle">
+                        <button class="ctg-btn" :class="{ active: heatmapMode === 'exp' }" @click="heatmapMode = 'exp'; loadHeatmap()">Uscite</button>
+                        <button class="ctg-btn" :class="{ active: heatmapMode === 'inc' }" @click="heatmapMode = 'inc'; loadHeatmap()">Entrate</button>
+                      </div>
+                      <div class="hm-from-year" v-if="heatmapYearList.length > 1">
+                        <span class="hm-from-label">Dal</span>
+                        <select class="hm-year-select" v-model.number="heatmapFromYear" @change="loadHeatmap()">
+                          <option v-for="y in heatmapYearList" :key="y" :value="y">{{ y }}</option>
+                        </select>
+                      </div>
+                    </div>
+                    <span class="heatmap-legend">
+                      <span class="hml-low">basso</span>
+                      <span class="hml-bar" :class="heatmapMode === 'inc' ? 'hml-bar-inc' : ''"></span>
+                      <span class="hml-high">alto</span>
+                    </span>
                   </div>
-                  <div v-if="dettaglioData" class="dettaglio-grid">
-                    <div class="dettaglio-kpi-row">
-                      <div class="dettaglio-kpi income-bg">
-                        <span class="dettaglio-kpi-label">Entrate</span>
-                        <span class="dettaglio-kpi-val">+€ {{ fmt0(dettaglioStats.income) }}</span>
-                      </div>
-                      <div class="dettaglio-kpi expense-bg">
-                        <span class="dettaglio-kpi-label">Uscite</span>
-                        <span class="dettaglio-kpi-val">-€ {{ fmt0(dettaglioStats.expense) }}</span>
-                      </div>
-                      <div class="dettaglio-kpi" :class="dettaglioStats.net >= 0 ? 'net-bg' : 'neg-bg'">
-                        <span class="dettaglio-kpi-label">Netto</span>
-                        <span class="dettaglio-kpi-val">{{ dettaglioStats.net >= 0 ? '+' : '' }}€ {{ fmt0(dettaglioStats.net) }}</span>
-                      </div>
+                  <!-- Tabella heatmap -->
+                  <div class="heatmap-kpi-row" v-if="heatmapData.length">
+                    <div class="hm-kpi">
+                      <span class="hm-kpi-label">Mese Min</span>
+                      <span :class="['hm-kpi-val', heatmapMode === 'exp' ? 'hm-kpi-low' : 'hm-kpi-high']">€ {{ fmt0(heatmapKpi.min) }}</span>
+                      <span class="hm-kpi-sub">{{ heatmapKpi.minLabel }}</span>
                     </div>
-                    <div class="chart-wrap-tall">
-                      <Chart type="bar" :data="dettaglioData" :options="dettaglioOptions" style="height:100%;width:100%" />
+                    <div class="hm-kpi">
+                      <span class="hm-kpi-label">Mese Max</span>
+                      <span :class="['hm-kpi-val', heatmapMode === 'exp' ? 'hm-kpi-high' : 'hm-kpi-low']">€ {{ fmt0(heatmapKpi.max) }}</span>
+                      <span class="hm-kpi-sub">{{ heatmapKpi.maxLabel }}</span>
                     </div>
+                    <div class="hm-kpi">
+                      <span class="hm-kpi-label">Media Mensile</span>
+                      <span class="hm-kpi-val">€ {{ fmt0(heatmapKpi.avg) }}</span>
+                      <span class="hm-kpi-sub">per mese</span>
+                    </div>
+                    <div class="hm-kpi">
+                      <span class="hm-kpi-label">Media Annuale</span>
+                      <span class="hm-kpi-val">€ {{ fmt0(heatmapKpi.avgYear) }}</span>
+                      <span class="hm-kpi-sub">per anno</span>
+                    </div>
+                  </div>
+                  <div class="heatmap-scroll" v-if="heatmapData.length">
+                    <table class="heatmap-table">
+                      <thead>
+                        <tr>
+                          <th class="hm-year-col"></th>
+                          <th v-for="m in heatmapMonths" :key="m" class="hm-month-col">{{ m }}</th>
+                          <th class="hm-tot-col">TOT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in heatmapData" :key="row.year">
+                          <td class="hm-year-label">{{ row.year }}</td>
+                          <td v-for="(val, mi) in row.months" :key="mi"
+                              :class="['hm-cell', row.year === heatmapNowYear && mi > heatmapNowMonth ? 'hm-future' : '']"
+                              :style="row.year === heatmapNowYear && mi > heatmapNowMonth ? {} : { background: heatColor(val, heatmapMax), color: val > heatmapMax * 0.55 ? '#fff' : 'inherit' }"
+                              :title="row.year === heatmapNowYear && mi > heatmapNowMonth ? '' : `${heatmapMonths[mi]} ${row.year}: € ${fmt0(val)}`">
+                            <span class="hm-val" v-if="val > 0 && !(row.year === heatmapNowYear && mi > heatmapNowMonth)">{{ fmtK(val) }}</span>
+                          </td>
+                          <td class="hm-total" :style="{ background: heatColor(row.total, heatmapYearMax), color: row.total > heatmapYearMax * 0.55 ? '#fff' : 'inherit' }">
+                            {{ fmtK(row.total) }}
+                          </td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td class="hm-year-label">Media</td>
+                          <td v-for="(avg, mi) in heatmapMonthAvg" :key="mi" class="hm-cell hm-avg">
+                            {{ avg > 0 ? fmtK(avg) : '—' }}
+                          </td>
+                          <td class="hm-total hm-avg">{{ fmtK(heatmapGrandAvg) }}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                   <div v-else class="chart-empty">
-                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="20" width="8" height="16" rx="1"/><rect x="16" y="12" width="8" height="24" rx="1"/><rect x="28" y="4" width="8" height="32" rx="1"/></svg>
-                    <p>Seleziona un mese per vedere il dettaglio</p>
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><rect x="4" y="4" width="8" height="8" rx="1"/><rect x="16" y="4" width="8" height="8" rx="1"/><rect x="28" y="4" width="8" height="8" rx="1"/><rect x="4" y="16" width="8" height="8" rx="1"/><rect x="16" y="16" width="8" height="8" rx="1"/><rect x="28" y="16" width="8" height="8" rx="1"/></svg>
+                    <p>Nessun dato disponibile</p>
                   </div>
                 </div>
               </TabPanel>
+              <TabPanel value="anomalie">
+                <div class="anomalie-wrap">
+                  <!-- Header: selettore mese di riferimento -->
+                  <div class="anomalie-header">
+                    <div class="anomalie-title-group">
+                      <span class="anomalie-label">Mese analizzato</span>
+                      <select class="hm-year-select anomalie-month-sel" v-model="anomalieMonth" @change="loadAnomalie()">
+                        <option v-for="m in anomalieMonthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+                      </select>
+                    </div>
+                    <span class="anomalie-sub">vs media degli ultimi 12 mesi</span>
+                  </div>
+
+                  <div v-if="anomalieData" class="anomalie-body">
+                    <!-- Split: Cattivi | Buoni -->
+                    <div class="anomalie-split">
+                      <!-- CATTIVI: speso più del solito -->
+                      <div class="anomalie-col anomalie-bad">
+                        <div class="anomalie-col-header">
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M7 2v6M4 5l3-3 3 3"/></svg>
+                          Sopra la media
+                        </div>
+                        <div v-if="anomalieData.bad.length" class="anomalie-list">
+                          <div v-for="item in anomalieData.bad" :key="item.cat" class="anomalie-item anomalie-item-bad">
+                            <div class="ai-top">
+                              <span class="ai-cat">{{ item.cat }}</span>
+                              <span class="ai-delta bad-delta">+€ {{ fmt0(item.delta) }}</span>
+                            </div>
+                            <div class="ai-bar-wrap">
+                              <div class="ai-bar-avg" :style="{ width: item.avgPct + '%' }"></div>
+                              <div class="ai-bar-cur bad-bar" :style="{ width: item.curPct + '%' }"></div>
+                            </div>
+                            <div class="ai-vals">
+                              <span class="ai-val-avg">Media: € {{ fmt0(item.avg) }}</span>
+                              <span class="ai-val-cur">Questo mese: € {{ fmt0(item.cur) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div v-else class="anomalie-empty">
+                          <span>✅ Nessuna categoria sopra la media</span>
+                        </div>
+                      </div>
+
+                      <!-- BUONI: speso meno del solito -->
+                      <div class="anomalie-col anomalie-good">
+                        <div class="anomalie-col-header">
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M7 12V6M4 9l3 3 3-3"/></svg>
+                          Sotto la media
+                        </div>
+                        <div v-if="anomalieData.good.length" class="anomalie-list">
+                          <div v-for="item in anomalieData.good" :key="item.cat" class="anomalie-item anomalie-item-good">
+                            <div class="ai-top">
+                              <span class="ai-cat">{{ item.cat }}</span>
+                              <span class="ai-delta good-delta">-€ {{ fmt0(item.delta) }}</span>
+                            </div>
+                            <div class="ai-bar-wrap">
+                              <div class="ai-bar-avg" :style="{ width: item.avgPct + '%' }"></div>
+                              <div class="ai-bar-cur good-bar" :style="{ width: item.curPct + '%' }"></div>
+                            </div>
+                            <div class="ai-vals">
+                              <span class="ai-val-avg">Media: € {{ fmt0(item.avg) }}</span>
+                              <span class="ai-val-cur">Questo mese: € {{ fmt0(item.cur) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div v-else class="anomalie-empty">
+                          <span>📊 Nessuna categoria sotto la media</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Scatter sanguisuga: alta freq, basso importo -->
+                    <div class="sanguisuga-wrap" v-if="sanguisugaData && sanguisugaData.length">
+                      <div class="sanguisuga-title">
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="7" cy="7" r="5"/><path d="M7 4v3l2 2"/></svg>
+                        Spese frequenti a basso importo unitario — "sanguisughe"
+                      </div>
+                      <div class="sanguisuga-list">
+                        <div v-for="s in sanguisugaData" :key="s.cat" class="sg-item">
+                          <span class="sg-cat">{{ s.cat }}</span>
+                          <span class="sg-freq">{{ s.count }}×</span>
+                          <div class="sg-bar-wrap">
+                            <div class="sg-bar" :style="{ width: s.pct + '%' }"></div>
+                          </div>
+                          <span class="sg-tot">€ {{ fmt0(s.total) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-else class="chart-empty">
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><path d="M20 4v18M10 13l10-9 10 9"/><circle cx="20" cy="28" r="4"/></svg>
+                    <p>Seleziona un mese per l'analisi</p>
+                  </div>
+                </div>
+              </TabPanel>
+
+              <TabPanel value="previsioni">
+                <div class="prev-wrap">
+
+                  <!-- ① PREVISIONE STAGIONALE -->
+                  <div class="prev-section" v-if="previsioneData">
+                    <div class="prev-section-title">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M2 12 L5 8 L9 10 L14 4"/><path d="M14 4h-3M14 4v3" stroke-linecap="round"/></svg>
+                      Previsione {{ MESI[new Date().getMonth()] }} {{ new Date().getFullYear() }}
+                      <span class="prev-method-badge">{{ previsioneData.method }}</span>
+                    </div>
+
+                    <!-- KPI principali -->
+                    <div class="prev-kpi-row">
+                      <div class="prev-kpi">
+                        <span class="prev-kpi-label">Entrate attese</span>
+                        <span class="prev-kpi-val income-text">€ {{ Math.round(previsioneData.predInc).toLocaleString('it-IT') }}</span>
+                        <span class="prev-kpi-sub" v-if="previsioneData.deltaIncYoY !== null">
+                          <span :class="previsioneData.deltaIncYoY >= 0 ? 'clr-ok' : 'clr-warn'">{{ previsioneData.deltaIncYoY >= 0 ? '+' : '' }}{{ previsioneData.deltaIncYoY.toFixed(1) }}%</span>
+                          vs {{ MESI[new Date().getMonth()] }} {{ new Date().getFullYear()-1 }}
+                        </span>
+                      </div>
+                      <div class="prev-kpi">
+                        <span class="prev-kpi-label">Uscite attese</span>
+                        <span class="prev-kpi-val expense-text">€ {{ Math.round(previsioneData.predExp).toLocaleString('it-IT') }}</span>
+                        <span class="prev-kpi-sub" v-if="previsioneData.deltaExpYoY !== null">
+                          <span :class="previsioneData.deltaExpYoY <= 0 ? 'clr-ok' : 'clr-warn'">{{ previsioneData.deltaExpYoY >= 0 ? '+' : '' }}{{ previsioneData.deltaExpYoY.toFixed(1) }}%</span>
+                          vs {{ MESI[new Date().getMonth()] }} {{ new Date().getFullYear()-1 }}
+                        </span>
+                      </div>
+                      <div class="prev-kpi" :class="previsioneData.onTrack ? 'prev-kpi-ok' : 'prev-kpi-warn'">
+                        <span class="prev-kpi-label">Risparmio atteso</span>
+                        <span class="prev-kpi-val" :class="previsioneData.predNet >= 0 ? 'income-text' : 'expense-text'">
+                          {{ previsioneData.predNet >= 0 ? '+' : '' }}€ {{ Math.round(Math.abs(previsioneData.predNet)).toLocaleString('it-IT') }}
+                        </span>
+                        <span class="prev-kpi-sub">target € {{ Math.round(previsioneData.targetEuro).toLocaleString('it-IT') }}</span>
+                      </div>
+                      <div class="prev-kpi" :class="previsioneData.deltaVsTarget >= 0 ? 'prev-kpi-ok' : 'prev-kpi-warn'">
+                        <span class="prev-kpi-label">Delta vs target</span>
+                        <span class="prev-kpi-val" :class="previsioneData.deltaVsTarget >= 0 ? 'clr-ok' : 'clr-warn'">
+                          {{ previsioneData.deltaVsTarget >= 0 ? '+' : '' }}€ {{ Math.round(Math.abs(previsioneData.deltaVsTarget)).toLocaleString('it-IT') }}
+                        </span>
+                        <span class="prev-kpi-sub">{{ previsioneData.onTrack ? '✓ In target' : '⚠ Sotto target' }}</span>
+                      </div>
+                    </div>
+
+                    <!-- Indicatori del modello -->
+                    <div class="prev-model-row">
+                      <div class="prev-model-item">
+                        <span class="prev-model-label">Indice stagionale entrate</span>
+                        <span class="prev-model-val" :class="previsioneData.seasonIdxInc >= 1 ? 'clr-ok' : 'clr-warn'">
+                          {{ previsioneData.seasonIdxInc >= 1 ? '+' : '' }}{{ ((previsioneData.seasonIdxInc - 1)*100).toFixed(1) }}%
+                        </span>
+                        <span class="prev-model-sub">vs media mensile anni prec.</span>
+                      </div>
+                      <div class="prev-model-item">
+                        <span class="prev-model-label">Indice stagionale uscite</span>
+                        <span class="prev-model-val" :class="previsioneData.seasonIdxExp <= 1 ? 'clr-ok' : 'clr-warn'">
+                          {{ previsioneData.seasonIdxExp >= 1 ? '+' : '' }}{{ ((previsioneData.seasonIdxExp - 1)*100).toFixed(1) }}%
+                        </span>
+                        <span class="prev-model-sub">vs media mensile anni prec.</span>
+                      </div>
+                      <div class="prev-model-item">
+                        <span class="prev-model-label">Trend YTD entrate</span>
+                        <span class="prev-model-val" :class="previsioneData.trendInc >= 1 ? 'clr-ok' : 'clr-warn'">
+                          {{ previsioneData.trendInc >= 1 ? '+' : '' }}{{ ((previsioneData.trendInc - 1)*100).toFixed(1) }}%
+                        </span>
+                        <span class="prev-model-sub">gen-{{ MESI[new Date().getMonth()-1] }} vs anno scorso</span>
+                      </div>
+                      <div class="prev-model-item">
+                        <span class="prev-model-label">Trend YTD uscite</span>
+                        <span class="prev-model-val" :class="previsioneData.trendExp <= 1 ? 'clr-ok' : 'clr-warn'">
+                          {{ previsioneData.trendExp >= 1 ? '+' : '' }}{{ ((previsioneData.trendExp - 1)*100).toFixed(1) }}%
+                        </span>
+                        <span class="prev-model-sub">gen-{{ MESI[new Date().getMonth()-1] }} vs anno scorso</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ② RUNWAY RISPARMIO -->
+                  <div class="prev-section" v-if="runwayData">
+                    <div class="prev-section-title">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M2 13 C4 10 6 11 8 8 S12 3 14 3"/></svg>
+                      Runway risparmio — storico 12 mesi + proiezione 6
+                    </div>
+                    <div class="prev-chart-wrap">
+                      <Chart type="line" :data="runwayData" :options="runwayOptions" style="height:100%;width:100%"/>
+                    </div>
+                  </div>
+
+                  <div v-if="!previsioneData" class="chart-empty">
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" opacity="0.3"><path d="M4 30 L12 20 L20 22 L28 12 L36 15"/><path d="M36 15h-4M36 15v4"/></svg>
+                    <p>Carica un database per vedere le previsioni</p>
+                  </div>
+
+                </div>
+              </TabPanel>
+              
 
             </TabPanels>
           </Tabs>
@@ -400,6 +737,9 @@ const toggleTheme = () => { theme.value = theme.value === 'dark' ? 'light' : 'da
 // ── STATO ──
 let dbInstance = null;
 const selectedPeriod = ref('current_month');
+const customStart = ref('');
+const customEnd   = ref('');
+const showCustom  = computed(() => selectedPeriod.value === 'custom');
 const statusMessage = ref('In attesa del file...');
 const isError = ref(false);
 const fileLoaded = ref(false);
@@ -408,6 +748,61 @@ const animating = ref(false);
 const activeBottomTab = ref('trend');
 
 const currentStats = ref({ income: 0, expense: 0, net: 0, rate: 0, sumNecessity: 0, sumExtra: 0 });
+
+// ── BURN RATE ──
+const burnTimePct = computed(() => {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return (now.getDate() / daysInMonth) * 100;
+});
+const burnDaysLeft = computed(() => {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return daysInMonth - now.getDate();
+});
+const burnSpendPct = computed(() => {
+  const budget = currentStats.value.income; // usiamo entrate come budget totale
+  if (!budget) return 0;
+  return Math.min((currentStats.value.expense / budget) * 100, 100);
+});
+const burnBudgetLeft = computed(() => {
+  return Math.max(currentStats.value.income - currentStats.value.expense, 0);
+});
+const burnDailyBudget = computed(() => {
+  const days = burnDaysLeft.value;
+  if (!days) return null;
+  return burnBudgetLeft.value / days;
+});
+const burnColor = computed(() => {
+  const diff = burnSpendPct.value - burnTimePct.value;
+  if (diff <= 0)   return '#10b981'; // verde — sotto il ritmo
+  if (diff <= 10)  return '#f59e0b'; // arancione — sul filo
+  return '#ef4444';                  // rosso — troppo veloce
+});
+const burnVerdict = computed(() => {
+  const diff = burnSpendPct.value - burnTimePct.value;
+  if (diff <= 0)  return '✓ Ottimo ritmo';
+  if (diff <= 10) return '⚡ Sul filo';
+  return '⚠ Rallenta!';
+});
+const burnVerdictClass = computed(() => {
+  const diff = burnSpendPct.value - burnTimePct.value;
+  if (diff <= 0)  return 'verdict-ok';
+  if (diff <= 10) return 'verdict-warn';
+  return 'verdict-bad';
+});
+// SVG arc path per gauge semi-cerchio (da -180° a 0°, cioè da sx a dx)
+const burnArcPath = computed(() => {
+  const pct = Math.min(burnSpendPct.value / 100, 1);
+  const angle = Math.PI * pct; // da 0 a π
+  const r = 80, cx = 100, cy = 100;
+  const startX = cx - r, startY = cy;
+  const endX = cx + Math.cos(Math.PI - angle) * r;
+  const endY = cy - Math.sin(angle) * r;
+  const largeArc = pct > 0.5 ? 1 : 0;
+  if (pct <= 0) return `M ${startX} ${startY} A ${r} ${r} 0 0 1 ${startX + 0.01} ${startY}`;
+  return `M ${startX} ${startY} A ${r} ${r} 0 0 1 ${endX} ${endY}`;
+});
 
 // ── TOP 10 DATI ──
 // ── BUDGET ──
@@ -544,16 +939,783 @@ const activeCfTab = ref('cashflow');
 const topCatData    = ref(null);
 const topCatOptions = ref({});
 
+// ── ANOMALIE & SANGUISUGHE ──
+const anomalieMonth       = ref('');
+const anomalieMonthOptions = ref([]);
+const anomalieData        = ref(null);
+
+// ── PREVISIONI ──
+const previsioneData      = ref(null);   // { proiezione, target, pctMonth, daysLeft, dailyPace, projectedExpense, projectedSaving }
+const runwayData          = ref(null);   // Chart.js data per linea storica + proiezione
+const runwayOptions       = ref(null);
+const ricorrenzeData      = ref(null);   // { abbonamenti: [], periodiche: [] }
+const sanguisugaData      = ref(null);
+
+
+const loadPrevisioni = () => {
+  if (!dbInstance) return;
+  try {
+    const now      = new Date();
+    const y        = now.getFullYear();
+    const m        = now.getMonth();           // 0-based
+    const dayOfMonth = now.getDate();
+    const isPostMid  = dayOfMonth >= 15;       // ibrido post-15
+
+    const safeVal = (q) => {
+      try { const r = dbInstance.exec(q); return (r.length && r[0].values[0][0]) ? Number(r[0].values[0][0]) : 0; }
+      catch(e) { return 0; }
+    };
+    const ms = (yr, mo, d1, d2) => {
+      const s = new Date(yr, mo, d1 || 1).getTime();
+      const e = d2 ? new Date(yr, mo, d2, 23,59,59,999).getTime()
+                   : new Date(yr, mo+1, 0, 23,59,59,999).getTime();
+      return { s, e };
+    };
+    const monthInc = (yr, mo) => safeVal(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=0 AND CAST(ZDATE AS REAL) BETWEEN ${ms(yr,mo).s} AND ${ms(yr,mo).e} AND CAST(ZDATE AS REAL)>1000000000000`);
+    const monthExp = (yr, mo) => safeVal(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=1 AND CAST(ZDATE AS REAL) BETWEEN ${ms(yr,mo).s} AND ${ms(yr,mo).e} AND CAST(ZDATE AS REAL)>1000000000000`);
+
+    // ── A) METODO STAGIONALE (tuo modello) ────────────────────────────────────
+    // 1. Indice stagionale del mese corrente su anni precedenti
+    //    Per ogni anno con dati: rapporto tra mese M e media mensile dell'anno
+    const seasonalInc = [], seasonalExp = [];
+    for (let dy = 1; dy <= 3; dy++) {
+      const py = y - dy;
+      const annualInc = Array.from({length:12}, (_,i) => monthInc(py, i)).reduce((a,b) => a+b, 0);
+      const annualExp = Array.from({length:12}, (_,i) => monthExp(py, i)).reduce((a,b) => a+b, 0);
+      const avgMonthInc = annualInc / 12;
+      const avgMonthExp = annualExp / 12;
+      const mInc = monthInc(py, m);
+      const mExp = monthExp(py, m);
+      if (avgMonthInc > 0 && mInc > 0) seasonalInc.push(mInc / avgMonthInc);
+      if (avgMonthExp > 0 && mExp > 0) seasonalExp.push(mExp / avgMonthExp);
+    }
+    const seasonIdxInc = seasonalInc.length ? seasonalInc.reduce((a,b)=>a+b,0)/seasonalInc.length : 1;
+    const seasonIdxExp = seasonalExp.length ? seasonalExp.reduce((a,b)=>a+b,0)/seasonalExp.length : 1;
+
+    // 2. Trend YTD: gen-(m-1) di quest'anno vs stesso periodo anno scorso
+    let trendInc = 1, trendExp = 1;
+    if (m > 0) {
+      let ytdCurInc = 0, ytdCurExp = 0, ytdPrevInc = 0, ytdPrevExp = 0;
+      for (let i = 0; i < m; i++) {
+        ytdCurInc  += monthInc(y,   i);
+        ytdCurExp  += monthExp(y,   i);
+        ytdPrevInc += monthInc(y-1, i);
+        ytdPrevExp += monthExp(y-1, i);
+      }
+      if (ytdPrevInc > 0) trendInc = ytdCurInc / ytdPrevInc;
+      if (ytdPrevExp > 0) trendExp = ytdCurExp / ytdPrevExp;
+    }
+
+    // 3. Base: media mensile anno scorso
+    const baseInc12 = Array.from({length:12}, (_,i) => monthInc(y-1, i)).reduce((a,b)=>a+b,0) / 12;
+    const baseExp12 = Array.from({length:12}, (_,i) => monthExp(y-1, i)).reduce((a,b)=>a+b,0) / 12;
+
+    // 4. Previsione stagionale pura
+    let predIncSeasonal = baseInc12 * seasonIdxInc * trendInc;
+    let predExpSeasonal = baseExp12 * seasonIdxExp * trendExp;
+
+    // ── B) METODO FALLBACK: media ponderata mese M ultimi 3 anni ─────────────
+    const sameMoVals = [1,2,3].map(dy => ({ inc: monthInc(y-dy, m), exp: monthExp(y-dy, m) })).filter(v => v.inc > 0);
+    const weights    = [0.50, 0.33, 0.17].slice(0, sameMoVals.length);
+    const wSum       = weights.reduce((a,b)=>a+b, 0);
+    const predIncFallback = wSum > 0 ? sameMoVals.reduce((a,v,i) => a + v.inc * weights[i], 0) / wSum : predIncSeasonal;
+    const predExpFallback = wSum > 0 ? sameMoVals.reduce((a,v,i) => a + v.exp * weights[i], 0) / wSum : predExpSeasonal;
+
+    // ── C) IBRIDO POST-15: blenda previsione con dati reali ───────────────────
+    let predInc, predExp, method;
+    if (isPostMid) {
+      const curInc = monthInc(y, m);
+      const curExp = monthExp(y, m);
+      const daysTotal = new Date(y, m+1, 0).getDate();
+      // Peso: più giorni passati → più peso ai dati reali
+      const wReal = (dayOfMonth - 14) / (daysTotal - 14);   // 0 al 15°, 1 all'ultimo
+      const wPred = 1 - wReal;
+      // Scala i dati reali a fine mese
+      const scaledInc = curInc / (dayOfMonth / daysTotal);
+      const scaledExp = curExp / (dayOfMonth / daysTotal);
+      predInc = scaledInc * wReal + predIncSeasonal * wPred;
+      predExp = scaledExp * wReal + predExpSeasonal * wPred;
+      method  = `Ibrido (${dayOfMonth}gg reali + stagionale)`;
+    } else {
+      predInc = predIncSeasonal;
+      predExp = predExpSeasonal;
+      method  = 'Stagionale puro';
+    }
+
+    // Fallback: se stagionale dà 0 per dati insufficienti
+    if (predInc < 1) { predInc = predIncFallback; predExp = predExpFallback; method += ' [fallback]'; }
+
+    const predNet = predInc - predExp;
+    const targetPct = (100 - budgetSettings.value.necessity - budgetSettings.value.extra) / 100;
+    const targetEuro = predInc * targetPct;
+    const deltaVsTarget = predNet - targetEuro;
+
+    // Confronto vs stesso mese anno scorso
+    const lastYearInc = monthInc(y-1, m);
+    const lastYearExp = monthExp(y-1, m);
+    const deltaIncYoY = lastYearInc > 0 ? ((predInc - lastYearInc) / lastYearInc * 100) : null;
+    const deltaExpYoY = lastYearExp > 0 ? ((predExp - lastYearExp) / lastYearExp * 100) : null;
+
+    previsioneData.value = {
+      predInc, predExp, predNet, targetEuro, deltaVsTarget,
+      seasonIdxInc, seasonIdxExp, trendInc, trendExp,
+      lastYearInc, lastYearExp, deltaIncYoY, deltaExpYoY,
+      method, isPostMid, dayOfMonth,
+      onTrack: predNet >= targetEuro,
+      // Fallback per confronto
+      predIncFallback, predExpFallback
+    };
+
+    // ── RUNWAY: storico 12 mesi + proiezione 6 mesi ──────────────────────────
+    let cum = 0;
+    const historicalLabels = [], historicalCum = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(y, m - i, 1);
+      const inc = monthInc(d.getFullYear(), d.getMonth());
+      const exp = monthExp(d.getFullYear(), d.getMonth());
+      cum += (inc - exp);
+      historicalLabels.push(MESI[d.getMonth()] + " '" + String(d.getFullYear()).slice(2));
+      historicalCum.push(Math.round(cum));
+    }
+
+    // Proiezione: usa indici stagionali per i prossimi 6 mesi
+    const projNull = [...new Array(historicalLabels.length - 1).fill(null), historicalCum[historicalCum.length - 1]];
+    const projValues = [];
+    const projLabels = [];
+    let projCum = cum;
+    for (let i = 1; i <= 6; i++) {
+      const fd = new Date(y, m + i, 1);
+      const fm = fd.getMonth(), fy = fd.getFullYear();
+      // Indice stagionale per il mese futuro
+      const futureSeasonalInc = [1,2,3].map(dy => {
+        const a = Array.from({length:12},(_,k)=>monthInc(fy-dy,k)).reduce((a,b)=>a+b,0)/12;
+        const mi = monthInc(fy-dy, fm);
+        return a > 0 && mi > 0 ? mi/a : null;
+      }).filter(v => v !== null);
+      const futSeasonIdx = futureSeasonalInc.length ? futureSeasonalInc.reduce((a,b)=>a+b,0)/futureSeasonalInc.length : 1;
+      const futureSeasonalExp = [1,2,3].map(dy => {
+        const a = Array.from({length:12},(_,k)=>monthExp(fy-dy,k)).reduce((a,b)=>a+b,0)/12;
+        const me = monthExp(fy-dy, fm);
+        return a > 0 && me > 0 ? me/a : null;
+      }).filter(v => v !== null);
+      const futSeasonExpIdx = futureSeasonalExp.length ? futureSeasonalExp.reduce((a,b)=>a+b,0)/futureSeasonalExp.length : 1;
+
+      const futInc = baseInc12 * futSeasonIdx * trendInc;
+      const futExp = baseExp12 * futSeasonExpIdx * trendExp;
+      projCum += (futInc - futExp);
+      projValues.push(Math.round(projCum));
+      projLabels.push(MESI[fm] + " '" + String(fy).slice(2));
+    }
+
+    const allLabels = [...historicalLabels, ...projLabels];
+    const histPad   = [...historicalCum, ...new Array(6).fill(null)];
+    const projPad   = [...projNull, ...projValues];
+
+    const isDark = theme.value === 'dark';
+    runwayData.value = {
+      labels: allLabels,
+      datasets: [
+        { label: 'Storico', data: histPad, borderColor: isDark?'#6ee7b7':'#059669', backgroundColor: isDark?'rgba(110,231,183,0.10)':'rgba(5,150,105,0.08)', borderWidth:2.5, tension:0.35, fill:true, pointRadius:3, pointBackgroundColor:isDark?'#6ee7b7':'#059669', spanGaps:false },
+        { label: 'Proiezione', data: projPad, borderColor: isDark?'#fbbf24':'#d97706', backgroundColor:'transparent', borderWidth:2, borderDash:[5,4], tension:0.35, pointRadius: ctx => ctx.dataIndex === 0 ? 0 : 4, pointBackgroundColor:isDark?'#fbbf24':'#d97706', spanGaps:false }
+      ]
+    };
+    runwayOptions.value = {
+      responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{ display:true, position:'top', align:'end', labels:{boxWidth:10,boxHeight:10,borderRadius:4,font:{size:11,family:'Inter, sans-serif',weight:'600'},color:isDark?'#94a3b8':'#64748b',usePointStyle:true}},
+        tooltip:{ backgroundColor:isDark?'rgba(28,27,25,0.95)':'rgba(15,23,42,0.95)', titleColor:isDark?'#94a3b8':'#cbd5e1', bodyColor:'#f1f5f9', padding:12, cornerRadius:8, callbacks:{label:ctx=>` € ${Math.round(ctx.raw).toLocaleString('it-IT')}`}}
+      },
+      scales:{
+        x:{grid:{display:false},border:{display:false},ticks:{font:{size:10,weight:'600',family:'Inter, sans-serif'},color:isDark?'#64748b':'#94a3b8',maxRotation:0}},
+        y:{grace:'10%',border:{display:false},grid:{color:isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)'},ticks:{font:{size:10,family:'Inter, sans-serif'},color:isDark?'#64748b':'#94a3b8',callback:v=>Math.abs(v)>=1000?`€ ${(v/1000).toFixed(1)}k`:`€ ${v}`}}
+      }
+    };
+
+    // ── RICORRENZE: sezione C (abbonamenti fissi) + sezione A (periodiche) ──
+
+    const since18 = new Date(y, m - 18, 1).getTime();
+    const safeRows = (q) => { try { const r = dbInstance.exec(q); return r.length && r[0].values ? r[0].values : []; } catch(e) { return []; } };
+
+    // Tutte le transazioni degli ultimi 18 mesi per categoria (sottocategorie)
+    const allTxRows = safeRows(`
+      SELECT s.name, CAST(i.ZDATE AS REAL) as ts, i.ZMONEY
+      FROM INOUTCOME i
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) > ${since18}
+        AND CAST(i.ZDATE AS REAL) > 1000000000000
+        AND s.name IS NOT NULL AND s.name != ''
+        AND s.puid IS NOT NULL
+      ORDER BY s.name, ts
+    `);
+
+    // Raggruppa per categoria → mappa cat → [{ts, amount}]
+    const catMap = {};
+    allTxRows.forEach(([cat, ts, amount]) => {
+      if (!catMap[cat]) catMap[cat] = [];
+      catMap[cat].push({ ts: Number(ts), amount: Number(amount) });
+    });
+
+    // ── SEZIONE C: Abbonamenti fissi ──────────────────────────────────────────
+    // Criteri: appare ogni mese (o quasi) con importo a bassa varianza (CV < 15%)
+    const abbonamenti = [];
+    Object.entries(catMap).forEach(([cat, txs]) => {
+      // Raggruppa per mese
+      const byMonth = {};
+      txs.forEach(({ ts, amount }) => {
+        const d = new Date(ts);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if (!byMonth[key]) byMonth[key] = 0;
+        byMonth[key] += amount;
+      });
+      const monthlyAmounts = Object.values(byMonth);
+      if (monthlyAmounts.length < 3) return; // troppo pochi mesi
+
+      // Frequenza: almeno 60% dei mesi negli ultimi 12
+      const last12months = [];
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(y, m - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        last12months.push(key);
+      }
+      const presentIn12 = last12months.filter(k => byMonth[k]).length;
+      if (presentIn12 < 7) return; // meno del 60% dei mesi
+
+      // Varianza coefficiente (CV = std/mean) — bassa = importo costante
+      const mean = monthlyAmounts.reduce((a,b)=>a+b,0) / monthlyAmounts.length;
+      const std  = Math.sqrt(monthlyAmounts.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0) / monthlyAmounts.length);
+      const cv   = mean > 0 ? std / mean : 1;
+      if (cv > 0.20) return; // troppo variabile per essere un abbonamento
+
+      // Presente questo mese?
+      const curKey = `${y}-${String(m+1).padStart(2,'0')}`;
+      const paidThisMonth = !!byMonth[curKey];
+
+      abbonamenti.push({ cat, mean: Math.round(mean), cv: Math.round(cv*100), presentIn12, paidThisMonth });
+    });
+    abbonamenti.sort((a,b) => b.mean - a.mean);
+
+    // ── SEZIONE A: Spese periodiche in arrivo ─────────────────────────────────
+    // Criteri: appare 2-6 volte in 18 mesi (non mensile), con intervallo stimato
+    const periodiche = [];
+    Object.entries(catMap).forEach(([cat, txs]) => {
+      const byMonth = {};
+      txs.forEach(({ ts, amount }) => {
+        const d = new Date(ts);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!byMonth[key]) byMonth[key] = { total: 0, d };
+        byMonth[key].total += amount;
+        byMonth[key].d = d;
+      });
+      const entries = Object.values(byMonth).sort((a,b) => a.d - b.d);
+      if (entries.length < 2 || entries.length > 7) return; // skip mensili e rarissime
+
+      // Non deve essere già un abbonamento
+      if (abbonamenti.find(a => a.cat === cat)) return;
+
+      const avgAmount = entries.reduce((a,e) => a + e.total, 0) / entries.length;
+
+      // Intervallo medio tra occorrenze (in mesi)
+      let intervals = [];
+      for (let i = 1; i < entries.length; i++) {
+        const diff = (entries[i].d.getFullYear() - entries[i-1].d.getFullYear()) * 12
+                   + (entries[i].d.getMonth() - entries[i-1].d.getMonth());
+        if (diff > 0) intervals.push(diff);
+      }
+      const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b,0)/intervals.length) : 6;
+      if (avgInterval <= 2 || avgInterval > 12) return; // esclude quasi-mensili (≤2 mesi)
+
+      // Ultima occorrenza
+      const lastEntry = entries[entries.length - 1];
+      const lastDate  = lastEntry.d;
+      const nextDate  = new Date(lastDate.getFullYear(), lastDate.getMonth() + avgInterval, 1);
+      const monthsUntil = (nextDate.getFullYear() - y) * 12 + (nextDate.getMonth() - m);
+      if (monthsUntil > 1 || monthsUntil < -1) return; // mostra solo: scaduto, questo mese, mese prossimo
+      if (avgAmount < 25) return; // ignora spese troppo piccole
+
+      const isPast    = monthsUntil < 0;
+      const isCurrent = monthsUntil === 0;
+      const nextLabel = isCurrent ? 'Questo mese'
+                      : isPast    ? `Scaduto (${MESI[nextDate.getMonth()]})`
+                      : 'Mese prossimo';
+
+      periodiche.push({ cat, avgAmount, avgInterval, lastDate, nextLabel, isPast, isCurrent, monthsUntil, nOccorrenze: entries.length });
+    });
+    periodiche.sort((a,b) => a.monthsUntil - b.monthsUntil);
+
+    ricorrenzeData.value = { abbonamenti, periodiche };
+
+  } catch(e) { console.error('loadPrevisioni', e); previsioneData.value = null; }
+};
+
+
+const loadAnomalie = () => {
+  if (!dbInstance) return;
+  if (!anomalieMonth.value) { initAnomalieMonths(); }
+  if (!anomalieMonth.value) return;
+  try {
+    const [y, m] = anomalieMonth.value.split('-').map(Number);
+    const curStart = new Date(y, m - 1, 1).getTime();
+    const curEnd   = new Date(y, m, 0, 23, 59, 59, 999).getTime();
+
+    // Ultimi 6 mesi prima del mese selezionato
+    const histEnd   = curStart - 1;
+    const histStart = new Date(y, m - 13, 1).getTime();  // 12 mesi precedenti
+
+    const safeExec = (q) => { try { const r = dbInstance.exec(q); return r.length && r[0].values ? r[0].values : []; } catch(e) { return []; } };
+
+    // Rileva colonna data: prova ZDATE, fallback WDATE
+    let curRows = safeExec(`
+      SELECT s.name, SUM(i.ZMONEY) as tot
+      FROM INOUTCOME i
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.ZDATE AS REAL) BETWEEN ${curStart} AND ${curEnd}
+        AND CAST(i.ZDATE AS REAL) > 1000000000000
+        AND s.name IS NOT NULL AND s.name != ''
+        AND s.puid IS NOT NULL
+      GROUP BY s.uid ORDER BY tot DESC LIMIT 20
+    `);
+    let dc = 'ZDATE';
+    if (!curRows.length) {
+      dc = 'WDATE';
+      curRows = safeExec(`
+        SELECT s.name, SUM(i.ZMONEY) as tot
+        FROM INOUTCOME i
+        LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+        WHERE i.DO_TYPE = 1
+          AND CAST(i.WDATE AS REAL) BETWEEN ${curStart} AND ${curEnd}
+          AND CAST(i.WDATE AS REAL) > 1000000000000
+          AND s.name IS NOT NULL AND s.name != ''
+          AND s.puid IS NOT NULL
+        GROUP BY s.uid ORDER BY tot DESC LIMIT 20
+      `);
+    }
+
+    // Media storica per categoria (6 mesi precedenti)
+    const histRows = safeExec(`
+      SELECT s.name, SUM(i.ZMONEY) / 12.0 as avg_monthly
+      FROM INOUTCOME i
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.${dc} AS REAL) BETWEEN ${histStart} AND ${histEnd}
+        AND CAST(i.${dc} AS REAL) > 1000000000000
+        AND s.name IS NOT NULL AND s.name != ''
+        AND s.puid IS NOT NULL
+      GROUP BY s.uid
+    `);
+
+    const histMap = {};
+    histRows.forEach(([name, avg]) => { histMap[name] = Number(avg) || 0; });
+
+    // Calcola delta — includi tutte le categorie con almeno 1€
+    const items = curRows
+      .map(([cat, cur]) => {
+        const avg   = histMap[cat] || 0;
+        const delta = Number(cur) - avg;
+        return { cat, cur: Number(cur), avg, delta };
+      })
+      .filter(x => x.cur > 1);
+
+    const maxVal = Math.max(...items.map(x => Math.max(x.cur, x.avg)), 1);
+    const enrich = items.map(x => ({
+      ...x,
+      curPct: Math.round((x.cur / maxVal) * 100),
+      avgPct: Math.round((x.avg / maxVal) * 100),
+      delta:  Math.abs(x.delta)
+    }));
+
+    // Soglia: delta > 15% della media storica (evita rumore su variazioni minime)
+    const bad  = enrich.filter(x => x.cur > x.avg && x.avg > 0 && (x.cur - x.avg) / x.avg > 0.15)
+                       .sort((a,b) => b.delta - a.delta).slice(0, 6);
+    // Includi anche categorie nuove (avg=0) con spesa significativa (>30€)
+    const badNew = enrich.filter(x => x.avg === 0 && x.cur > 30)
+                         .sort((a,b) => b.cur - a.cur).slice(0, 2);
+    const good = enrich.filter(x => x.cur < x.avg && x.avg > 0 && (x.avg - x.cur) / x.avg > 0.15)
+                       .sort((a,b) => b.delta - a.delta).slice(0, 6);
+    const allBad = [...bad, ...badNew].slice(0, 6);
+
+    anomalieData.value = { bad: allBad, good };
+
+    // Sanguisughe: alta frequenza, importo unitario basso (threshold: ≥3 transazioni, media ≤ 50€)
+    const sgRows = safeExec(`
+      SELECT s.name, COUNT(*) as cnt, SUM(i.ZMONEY) as tot, AVG(i.ZMONEY) as avg_tx
+      FROM INOUTCOME i
+      LEFT JOIN ZCATEGORY s ON i.ctguid = s.uid
+      WHERE i.DO_TYPE = 1
+        AND CAST(i.${dc} AS REAL) BETWEEN ${curStart} AND ${curEnd}
+        AND CAST(i.${dc} AS REAL) > 1000000000000
+        AND s.name IS NOT NULL AND s.name != ''
+        AND s.puid IS NOT NULL
+      GROUP BY s.uid
+      HAVING cnt >= 3 AND avg_tx <= 15
+      ORDER BY cnt DESC LIMIT 8
+    `);
+
+    if (sgRows.length) {
+      const sgMax = Math.max(...sgRows.map(r => Number(r[2])), 1);
+      sanguisugaData.value = sgRows.map(([cat, count, total]) => ({
+        cat, count: Number(count), total: Number(total),
+        pct: Math.round((Number(total) / sgMax) * 100)
+      }));
+    } else {
+      sanguisugaData.value = null;
+    }
+
+  } catch(e) { console.error('loadAnomalie', e); anomalieData.value = null; }
+};
+
+// Popola le opzioni del selettore mese anomalie (ultimi 18 mesi)
+const initAnomalieMonths = () => {
+  const opts = [];
+  const now = new Date();
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+    opts.push({ value: val, label });
+  }
+  anomalieMonthOptions.value = opts;
+  // Imposta default solo se il mese attuale non è già selezionato o non è valido
+  const validValues = opts.map(o => o.value);
+  if (!anomalieMonth.value || !validValues.includes(anomalieMonth.value)) {
+    anomalieMonth.value = opts[0]?.value || '';
+  }
+};
+
+// ── HEATMAP ANNO × MESE ──
+const heatmapMode     = ref('exp');   // 'exp' | 'inc'
+const heatmapData     = ref([]);
+const heatmapMax      = ref(1);
+const heatmapYearMax  = ref(1);
+const heatmapMonthAvg = ref(Array(12).fill(0));
+const heatmapGrandAvg = ref(0);
+const heatmapMonths   = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+const heatmapKpi      = ref({ min: 0, minLabel: '', max: 0, maxLabel: '', avg: 0, avgYear: 0 });
+const heatmapFromYear = ref(null);   // null = tutti gli anni
+const heatmapYearList = ref([]);     // anni disponibili nei dati
+const heatmapNowYear  = new Date().getFullYear();
+const heatmapNowMonth = new Date().getMonth(); // 0-based
+
+const heatColor = (val, max) => {
+  if (!val || !max) return 'transparent';
+  const t = Math.min(val / max, 1);
+  const isDark = theme.value === 'dark';
+  if (heatmapMode.value === 'exp') {
+    // Spese: bianco → arancio → rosso scuro
+    if (isDark) {
+      const r = Math.round(30  + t * 200);
+      const g = Math.round(20  + (1-t) * 80);
+      const b = Math.round(20  + (1-t) * 30);
+      return `rgb(${r},${g},${b})`;
+    } else {
+      const r = Math.round(255);
+      const g = Math.round(245 - t * 185);
+      const b = Math.round(235 - t * 215);
+      return `rgb(${r},${g},${b})`;
+    }
+  } else {
+    // Entrate: bianco → verde acqua → verde scuro
+    if (isDark) {
+      const r = Math.round(10  + (1-t) * 30);
+      const g = Math.round(60  + t * 130);
+      const b = Math.round(50  + t * 60);
+      return `rgb(${r},${g},${b})`;
+    } else {
+      const r = Math.round(240 - t * 210);
+      const g = Math.round(255 - t * 60);
+      const b = Math.round(240 - t * 140);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+};
+
+const fmtK = (v) => {
+  if (!v) return '';
+  if (v >= 1000) return (v/1000).toFixed(1).replace('.0','') + 'k';
+  return Math.round(v).toString();
+};
+
+const loadHeatmap = () => {
+  if (!dbInstance) return;
+  try {
+    const doType = heatmapMode.value === 'exp' ? 1 : 0;
+    const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
+
+    // Prendi tutti i dati aggregati per anno-mese, prova ZDATE poi WDATE
+    let rows = safeExec(`
+      SELECT
+        CAST(strftime('%Y', datetime(CAST(ZDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as yr,
+        CAST(strftime('%m', datetime(CAST(ZDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as mo,
+        SUM(ZMONEY) as tot
+      FROM INOUTCOME
+      WHERE DO_TYPE = ${doType} AND ZDATE IS NOT NULL AND CAST(ZDATE AS REAL) > 0
+      GROUP BY yr, mo
+      ORDER BY yr, mo
+    `);
+
+    if (!rows.length) {
+      rows = safeExec(`
+        SELECT
+          CAST(strftime('%Y', datetime(CAST(WDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as yr,
+          CAST(strftime('%m', datetime(CAST(WDATE AS REAL)/1000, 'unixepoch')) AS INTEGER) as mo,
+          SUM(ZMONEY) as tot
+        FROM INOUTCOME
+        WHERE DO_TYPE = ${doType} AND WDATE IS NOT NULL AND CAST(WDATE AS REAL) > 0
+        GROUP BY yr, mo
+        ORDER BY yr, mo
+      `);
+    }
+
+    if (!rows.length) { heatmapData.value = []; return; }
+
+    // Raggruppa per anno
+    const byYear = {};
+    rows.forEach(([yr, mo, tot]) => {
+      if (!byYear[yr]) byYear[yr] = Array(12).fill(0);
+      byYear[yr][mo - 1] = Number(tot) || 0;
+    });
+
+    // Prendi l'anno corrente + i 6 precedenti (max 7 righe), solo anni <= nowY
+    const nowY = new Date().getFullYear();
+    // Tutti gli anni disponibili <= anno corrente (per il selettore)
+    const availableYears = Object.keys(byYear).map(Number)
+      .filter(y => y <= nowY).sort((a,b) => a-b);
+    heatmapYearList.value = availableYears;
+    // Se heatmapFromYear non è ancora impostato, usa il primo anno disponibile
+    if (heatmapFromYear.value === null && availableYears.length)
+      heatmapFromYear.value = availableYears[0];
+
+    // Filtra per anno minimo selezionato, poi prendi max 7 anni recenti
+    const allYears = availableYears
+      .filter(y => !heatmapFromYear.value || y >= heatmapFromYear.value)
+      .slice(-7);
+
+    const nowM = new Date().getMonth(); // 0-based
+    const tableRows = allYears.map(yr => {
+      const months = byYear[yr].map((v, mi) => {
+        // Azzera mesi futuri: per l'anno corrente, oltre il mese attuale
+        if (yr === nowY && mi > nowM) return 0;
+        // Per anni futuri (non dovrebbe succedere) azzera tutto
+        if (yr > nowY) return 0;
+        return v;
+      });
+      const total = months.reduce((s,v) => s + v, 0);
+      return { year: yr, months, total };
+    });
+
+    // Calcola max per colore
+    const allVals = tableRows.flatMap(r => r.months).filter(v => v > 0);
+    const yearTots = tableRows.map(r => r.total);
+    heatmapMax.value     = allVals.length  ? Math.max(...allVals) : 1;
+    heatmapYearMax.value = yearTots.length ? Math.max(...yearTots) : 1;
+
+    // Media per colonna (mese)
+    const monthAvg = Array(12).fill(0);
+    allYears.forEach(yr => {
+      byYear[yr].forEach((v, mi) => { monthAvg[mi] += v; });
+    });
+    heatmapMonthAvg.value = monthAvg.map(v => Math.round(v / allYears.length));
+    heatmapGrandAvg.value = Math.round(heatmapMonthAvg.value.reduce((s,v) => s+v, 0));
+
+    // Calcola KPI sui dati filtrati (tableRows, rispetta fromYear)
+    const fmtMoYr = (yr, mo) => `${heatmapMonths[mo-1]} ${yr}`;
+    const filteredVals = tableRows.flatMap(r =>
+      r.months.map((v, mi) => ({ val: v, yr: r.year, mo: mi + 1 }))
+    ).filter(({ val, yr, mo }) => {
+      if (!val || val <= 0) return false;
+      if (yr === nowY && (mo - 1) > nowM) return false; // escludi futuri
+      return true;
+    });
+    const minVal  = filteredVals.length ? Math.min(...filteredVals.map(x => x.val)) : 0;
+    const maxVal  = filteredVals.length ? Math.max(...filteredVals.map(x => x.val)) : 0;
+    const minEntry = filteredVals.find(x => x.val === minVal);
+    const maxEntry = filteredVals.find(x => x.val === maxVal);
+    const grandTotal = filteredVals.reduce((s, x) => s + x.val, 0);
+    const avgMonth   = filteredVals.length ? Math.round(grandTotal / filteredVals.length) : 0;
+    const avgYear    = allYears.length ? Math.round(grandTotal / allYears.length) : 0;
+    heatmapKpi.value = {
+      min: minVal, minLabel: minEntry ? fmtMoYr(minEntry.yr, minEntry.mo) : '—',
+      max: maxVal, maxLabel: maxEntry ? fmtMoYr(maxEntry.yr, maxEntry.mo) : '—',
+      avg: avgMonth, avgYear
+    };
+
+    heatmapData.value = tableRows;
+  } catch(e) { console.error('loadHeatmap', e); heatmapData.value = []; }
+};
+
+// ── CONFRONTO PERIODO ──
+const confrontoMode  = ref('prev');    // 'prev' | 'year'
+const confrontoPrevLabel = ref('');
+const confrontoCurLabel  = ref('');
+const confrontoData  = ref(null);
+const confrontoOptions = ref({});
+const confrontoDelta = ref(null);
+
+const loadConfronto = () => {
+  if (!dbInstance) return;
+  try {
+    const { startMs, endMs } = getPeriodRange();
+    // Calcola il range del periodo precedente
+    const spanMs = endMs - startMs;
+    let prevStart, prevEnd;
+
+    if (confrontoMode.value === 'year') {
+      // Anno precedente: stesso range calendario, -1 anno
+      const sDate = new Date(startMs), eDate = new Date(endMs);
+      sDate.setFullYear(sDate.getFullYear() - 1);
+      eDate.setFullYear(eDate.getFullYear() - 1);
+      prevStart = sDate.getTime();
+      prevEnd   = eDate.getTime();
+
+    } else if (selectedPeriod.value === 'current_month') {
+      // Mese calendario precedente completo
+      const s = new Date(startMs);
+      const prevMonthStart = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+      const prevMonthEnd   = new Date(s.getFullYear(), s.getMonth(), 0, 23, 59, 59, 999);
+      prevStart = prevMonthStart.getTime();
+      prevEnd   = prevMonthEnd.getTime();
+
+    } else if (selectedPeriod.value === 'last_month') {
+      // Due mesi fa (mese calendario completo)
+      const s = new Date(startMs);
+      const prevMonthStart = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+      const prevMonthEnd   = new Date(s.getFullYear(), s.getMonth(), 0, 23, 59, 59, 999);
+      prevStart = prevMonthStart.getTime();
+      prevEnd   = prevMonthEnd.getTime();
+
+    } else if (selectedPeriod.value === 'ytd') {
+      // YTD anno scorso: 1 gen anno prec → stesso giorno anno prec
+      const s = new Date(startMs), e = new Date(endMs);
+      s.setFullYear(s.getFullYear() - 1);
+      e.setFullYear(e.getFullYear() - 1);
+      prevStart = s.getTime();
+      prevEnd   = e.getTime();
+
+    } else {
+      // custom / all: shift della stessa durata esatta
+      prevStart = startMs - spanMs;
+      prevEnd   = startMs - 1;
+    }
+
+    const run = (q) => { const r = dbInstance.exec(q); return r.length && r[0].values[0] ? Number(r[0].values[0][0]) : 0; };
+
+    // Calcola label leggibili per i periodi
+    const fmtDate = (ms) => {
+      const d = new Date(ms);
+      return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+    const fmtMonth = (ms) => new Date(ms).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+    if (selectedPeriod.value === 'current_month' || selectedPeriod.value === 'last_month') {
+      confrontoCurLabel.value  = fmtMonth(startMs);
+      confrontoPrevLabel.value = fmtMonth(prevStart);
+    } else if (selectedPeriod.value === 'ytd') {
+      const y = new Date(startMs).getFullYear();
+      confrontoCurLabel.value  = `Gen–oggi ${y}`;
+      confrontoPrevLabel.value = `Gen–oggi ${y - 1}`;
+    } else {
+      confrontoCurLabel.value  = `${fmtDate(startMs)} – ${fmtDate(endMs)}`;
+      confrontoPrevLabel.value = `${fmtDate(prevStart)} – ${fmtDate(prevEnd)}`;
+    }
+
+    const curInc = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=0 AND CAST(ZDATE AS REAL)>=${startMs} AND CAST(ZDATE AS REAL)<=${endMs}`);
+    const curExp = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=1 AND CAST(ZDATE AS REAL)>=${startMs} AND CAST(ZDATE AS REAL)<=${endMs}`);
+    const prevInc = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=0 AND CAST(ZDATE AS REAL)>=${prevStart} AND CAST(ZDATE AS REAL)<=${prevEnd}`);
+    const prevExp = run(`SELECT SUM(ZMONEY) FROM INOUTCOME WHERE DO_TYPE=1 AND CAST(ZDATE AS REAL)>=${prevStart} AND CAST(ZDATE AS REAL)<=${prevEnd}`);
+
+    const curNet  = curInc  - curExp;
+    const prevNet = prevInc - prevExp;
+    const isDark  = theme.value === 'dark';
+    const periodLabel = confrontoMode.value === 'year' ? 'Anno prec.' : 'Periodo prec.';
+
+    confrontoData.value = {
+      labels: ['Entrate', 'Uscite', 'Netto'],
+      datasets: [
+        {
+          label: confrontoPrevLabel.value || periodLabel,
+          data: [prevInc, prevExp, prevNet],
+          backgroundColor: isDark ? 'rgba(100,116,139,0.45)' : 'rgba(148,163,184,0.40)',
+          borderColor:     isDark ? '#475569' : '#94a3b8',
+          borderWidth: 1.5, borderRadius: 4, borderSkipped: false
+        },
+        {
+          label: confrontoCurLabel.value || 'Periodo attuale',
+          data: [curInc, curExp, curNet],
+          backgroundColor: [
+            isDark ? 'rgba(16,185,129,0.65)' : 'rgba(16,185,129,0.55)',
+            isDark ? 'rgba(239,68,68,0.65)'  : 'rgba(239,68,68,0.55)',
+            curNet >= 0
+              ? (isDark ? 'rgba(59,130,246,0.65)'  : 'rgba(59,130,246,0.55)')
+              : (isDark ? 'rgba(251,146,60,0.65)'  : 'rgba(251,146,60,0.55)')
+          ],
+          borderColor: [
+            '#059669', '#dc2626', curNet >= 0 ? '#2563eb' : '#ea580c'
+          ],
+          borderWidth: 1.5, borderRadius: 4, borderSkipped: false,
+          // Fix legenda: usa il colore della prima barra (entrate=verde) come colore del punto legenda
+          pointBackgroundColor: isDark ? 'rgba(16,185,129,0.65)' : 'rgba(16,185,129,0.55)',
+        }
+      ]
+    };
+
+    const pct = (cur, prev) => prev !== 0 ? ((cur - prev) / Math.abs(prev)) * 100 : 0;
+    confrontoDelta.value = {
+      incDelta: pct(curInc, prevInc),
+      expDelta: pct(curExp, prevExp),
+      netDelta: pct(curNet, prevNet)
+    };
+
+    const tooltip = {
+      backgroundColor: isDark ? 'rgba(28,27,25,0.95)' : 'rgba(15,23,42,0.95)',
+      titleColor: isDark ? '#94a3b8' : '#cbd5e1', bodyColor: '#f1f5f9',
+      padding: 10, cornerRadius: 8,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', borderWidth: 1,
+      callbacks: { label: ctx => `${ctx.dataset.label}: € ${Math.round(ctx.raw).toLocaleString('it-IT')}` }
+    };
+
+    confrontoOptions.value = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: {
+            boxWidth: 10, boxHeight: 10, borderRadius: 3,
+            font: { size: 11, weight: '600' },
+            color: isDark ? '#94a3b8' : '#64748b',
+            usePointStyle: true,
+            generateLabels: (chart) => {
+              const labels = chart.data.datasets.map((ds, i) => ({
+                text: ds.label,
+                fillStyle: i === 0
+                  ? (isDark ? 'rgba(100,116,139,0.45)' : 'rgba(148,163,184,0.40)')
+                  : (isDark ? 'rgba(16,185,129,0.65)' : 'rgba(16,185,129,0.55)'),
+                strokeStyle: i === 0
+                  ? (isDark ? '#475569' : '#94a3b8')
+                  : '#059669',
+                lineWidth: 1.5,
+                pointStyle: 'rectRounded',
+                datasetIndex: i,
+                hidden: !chart.isDatasetVisible(i),
+              }));
+              return labels;
+            }
+          }
+        },
+        tooltip
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 12, weight: '600' }, color: isDark ? '#94a3b8' : '#475569' } },
+        y: { beginAtZero: true, border: { display: false }, grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
+             ticks: { font: { size: 10 }, color: isDark ? '#64748b' : '#94a3b8', callback: v => v >= 1000 ? `€${(v/1000).toFixed(0)}k` : `€${v}` } }
+      }
+    };
+  } catch(e) { console.error('loadConfronto', e); confrontoData.value = null; }
+};
+
 const loadTopCat = () => {
   if (!dbInstance) return;
   try {
-    const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    let startMs = 0, endMs = Date.now();
-    if (selectedPeriod.value === 'current_month') startMs = new Date(y, m, 1).getTime();
-    else if (selectedPeriod.value === 'last_month') { startMs = new Date(y, m - 1, 1).getTime(); endMs = new Date(y, m, 0, 23, 59, 59, 999).getTime(); }
-    else if (selectedPeriod.value === 'ytd') startMs = new Date(y, 0, 1).getTime();
-
+    const { startMs, endMs } = getPeriodRange();
     const safeExec = (q) => { try { const r = dbInstance.exec(q); return (r.length && r[0].values) ? r[0].values : []; } catch(e) { return []; } };
 
     // Top Categorie: ctguid punta alla figlia (s), si risale al padre (c) via s.puid
@@ -699,19 +1861,31 @@ const handleFileUpload = async (event) => {
 };
 
 // ── REFRESH DATI ──
+const getPeriodRange = () => {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  let startMs = 0, endMs = Date.now();
+  if (selectedPeriod.value === 'current_month') {
+    startMs = new Date(y, m, 1).getTime();
+  } else if (selectedPeriod.value === 'last_month') {
+    startMs = new Date(y, m - 1, 1).getTime();
+    endMs   = new Date(y, m, 0, 23, 59, 59, 999).getTime();
+  } else if (selectedPeriod.value === 'ytd') {
+    startMs = new Date(y, 0, 1).getTime();
+  } else if (selectedPeriod.value === 'custom') {
+    if (customStart.value) startMs = new Date(customStart.value + 'T00:00:00').getTime();
+    if (customEnd.value)   endMs   = new Date(customEnd.value   + 'T23:59:59').getTime();
+  }
+  return { startMs, endMs };
+};
+
 const refreshData = () => {
   if (!dbInstance) return;
   try {
     animating.value = true;
     setTimeout(() => { animating.value = false; }, 500);
 
-    const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    let startMs = 0, endMs = Date.now();
-
-    if (selectedPeriod.value === 'current_month') startMs = new Date(y, m, 1).getTime();
-    else if (selectedPeriod.value === 'last_month') { startMs = new Date(y, m - 1, 1).getTime(); endMs = new Date(y, m, 0, 23, 59, 59, 999).getTime(); }
-    else if (selectedPeriod.value === 'ytd') startMs = new Date(y, 0, 1).getTime();
+    const { startMs, endMs } = getPeriodRange();
 
     const run = (q) => { const r = dbInstance.exec(q); return (r.length > 0 && r[0].values[0][0]) ? r[0].values[0][0] : 0; };
 
@@ -758,6 +1932,11 @@ const refreshData = () => {
     loadTrend12();
     loadStorico();
     loadTopCat();
+    loadConfronto();
+    loadHeatmap();
+    initAnomalieMonths();
+    loadAnomalie();
+    loadPrevisioni();
     buildDettaglioOptions();
     if (dettaglioMonth.value) loadDettaglio();
   } catch (err) {
@@ -1003,7 +2182,7 @@ const loadTrend12 = () => {
 // ══════════════════════════════════════════════
 const storicoData   = ref(null);
 const storicoOptions = ref({});
-const storicoSummary = ref({ totalNet: 0, maxCumulative: 0, months: 0, avgMonthly: 0 });
+const storicoSummary = ref({ totalNet: 0, maxCumulative: 0, months: 0, avgMonthly: 0, deltaVsTarget: 0, isAbove: true });
 
 const loadStorico = () => {
   if (!dbInstance) return;
@@ -1016,6 +2195,7 @@ const loadStorico = () => {
         SUM(CASE WHEN DO_TYPE=0 THEN ZMONEY ELSE 0 END) as inc,
         SUM(CASE WHEN DO_TYPE=1 THEN ZMONEY ELSE 0 END) as exp
       FROM INOUTCOME
+      WHERE CAST(ZDATE AS REAL) <= ${Date.now()}
       GROUP BY yr, mo
       ORDER BY yr, mo
     `);
@@ -1035,6 +2215,21 @@ const loadStorico = () => {
 
     const isDark = theme.value === 'dark';
 
+    // Linea obiettivo cumulativa: media entrate storiche × targetSavingsPct% per ogni mese
+    const avgInc = rows.reduce((s, [,, inc]) => s + (inc || 0), 0) / rows.length;
+    const targetPerMonth = avgInc * (targetSavingsPct.value / 100);
+    let cumTarget = 0;
+    const targetCumulative = rows.map(() => { cumTarget += targetPerMonth; return Math.round(cumTarget); });
+
+    // Colore area: verde se cumulativo >= obiettivo, rosso altrimenti
+    const lastReal = cumulative[cumulative.length - 1] || 0;
+    const lastTarget = targetCumulative[targetCumulative.length - 1] || 0;
+    const isAbove = lastReal >= lastTarget;
+    const areaColor = isAbove
+      ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)')
+      : (isDark ? 'rgba(239,68,68,0.15)'  : 'rgba(239,68,68,0.10)');
+    const lineColor = isAbove ? '#10b981' : '#ef4444';
+
     storicoData.value = {
       labels,
       datasets: [
@@ -1046,18 +2241,35 @@ const loadStorico = () => {
           borderWidth: 1.5,
           pointRadius: 2, pointHoverRadius: 4,
           tension: 0.2, fill: false,
-          yAxisID: 'yMonthly'
+          yAxisID: 'yMonthly',
+          order: 3
+        },
+        {
+          label: 'Obiettivo',
+          data: targetCumulative,
+          borderColor: isDark ? 'rgba(251,191,36,0.7)' : 'rgba(217,119,6,0.6)',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 0, pointHoverRadius: 4,
+          tension: 0.3, fill: false,
+          yAxisID: 'yCumulative',
+          order: 2
         },
         {
           label: 'Cumulativo',
           data: cumulative,
-          borderColor: '#8b5cf6',
-          backgroundColor: isDark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.10)',
-          borderWidth: 3,
+          borderColor: lineColor,
+          backgroundColor: areaColor,
+          borderWidth: 2.5,
           pointRadius: 3, pointHoverRadius: 6,
-          pointBackgroundColor: '#8b5cf6',
-          tension: 0.4, fill: true,
-          yAxisID: 'yCumulative'
+          pointBackgroundColor: lineColor,
+          pointBorderColor: isDark ? '#1e293b' : '#fff',
+          pointBorderWidth: 1.5,
+          tension: 0.4,
+          fill: { target: 1, above: areaColor, below: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.10)' },
+          yAxisID: 'yCumulative',
+          order: 1
         }
       ]
     };
@@ -1090,10 +2302,13 @@ const loadStorico = () => {
     const totalNet = cumulative[cumulative.length - 1] || 0;
     const maxCumulative = Math.max(...cumulative);
     const validMonthly = monthly.filter(v => v !== 0);
+    const deltaVsTarget = totalNet - (targetCumulative[targetCumulative.length - 1] || 0);
     storicoSummary.value = {
       totalNet, maxCumulative,
       months: rows.length,
-      avgMonthly: validMonthly.length ? validMonthly.reduce((a,b) => a+b,0) / validMonthly.length : 0
+      avgMonthly: validMonthly.length ? validMonthly.reduce((a,b) => a+b,0) / validMonthly.length : 0,
+      deltaVsTarget,
+      isAbove
     };
   } catch(e) { console.error('loadStorico:', e); }
 };
@@ -1256,6 +2471,9 @@ const loadDettaglio = () => {
 
 // Carica dettaglio quando si apre il tab
 watch(activeBottomTab, (tab) => {
+  if (tab === 'previsioni' && dbInstance) {
+    loadPrevisioni();
+  }
   if (tab === 'dettaglio' && dbInstance) {
     if (!dettaglioMonthOptions.value.length) buildDettaglioOptions();
     if (!dettaglioData.value) loadDettaglio();
@@ -1507,7 +2725,7 @@ watch(activeBottomTab, (tab) => {
 .budget-body { padding: var(--s4); }
 
 /* ── BUDGET CONTENT ── */
-.budget-sliders { display: flex; flex-direction: column; gap: var(--s4); }
+.budget-sliders { display: flex; flex-direction: column; gap: var(--s5); }
 .budget-settings-row {
   display: flex; justify-content: space-between; gap: var(--s2);
   background: var(--surface-2); padding: var(--s3); border-radius: var(--r-md);
@@ -1534,11 +2752,11 @@ watch(activeBottomTab, (tab) => {
 .clr-warn   { color: #d97706; }
 .clr-danger { color: #e11d48; }
 .progress-track {
-  height: 11px;
+  height: 16px;
   background: rgba(255,255,255,0.35);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.55);
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
@@ -1549,7 +2767,7 @@ watch(activeBottomTab, (tab) => {
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
 }
 .progress-bar {
-  height: 100%; border-radius: 6px;
+  height: 100%; border-radius: 8px;
   transition: width 0.4s cubic-bezier(0.16,1,0.3,1);
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
@@ -1557,11 +2775,7 @@ watch(activeBottomTab, (tab) => {
 .bar-warn   { background: linear-gradient(90deg, #d97706, #f59e0b); }
 .bar-danger { background: linear-gradient(90deg, #dc2626, #ef4444); }
 
-.budget-savings-row {
-  display: flex; justify-content: space-between; align-items: center;
-  background: var(--surface-2); border-radius: var(--r-md);
-  padding: var(--s3); border: 1px solid var(--border);
-}
+
 .savings-left { display: flex; flex-direction: column; gap: 2px; }
 .savings-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .savings-amount { font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
@@ -1713,4 +2927,544 @@ watch(activeBottomTab, (tab) => {
   font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text-muted);
 }
+
+
+
+/* ── Savings tip inline (dentro budget-savings-row) ────────────────────────── */
+.budget-savings-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s3);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+}
+.savings-left {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 90px; flex-shrink: 0;
+}
+.savings-tip-inline {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  border-left: 2px solid;
+}
+.sti-ok   { background: rgba(16,185,129,0.08); border-color: #059669; }
+.sti-warn { background: rgba(239,68,68,0.08);  border-color: #dc2626; }
+.mm-app[data-theme="dark"] .sti-ok   { background: rgba(16,185,129,0.12); }
+.mm-app[data-theme="dark"] .sti-warn { background: rgba(239,68,68,0.12); }
+.sti-delta {
+  font-size: 13px; font-weight: 800; line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.sti-ok   .sti-delta { color: #059669; }
+.sti-warn .sti-delta { color: #dc2626; }
+.sti-msg {
+  font-size: 11px; color: var(--text-muted); line-height: 1.4;
+}
+
+
+/* ── Burn Rate / Ritmo di Spesa ─────────────────────────────────────────────── */
+.burnrate-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: var(--s3) var(--s2) var(--s2);
+  height: 100%; justify-content: center; gap: var(--s3);
+}
+.gauge-container {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s1);
+  width: 100%; max-width: 220px;
+}
+.gauge-svg { width: 100%; max-width: 200px; overflow: visible; }
+.gauge-arc { transition: stroke-dasharray 0.6s cubic-bezier(0.16,1,0.3,1), stroke 0.4s; }
+.gauge-main-label {
+  font-size: 22px; font-weight: 800;
+  font-family: var(--font);
+  letter-spacing: -0.03em;
+}
+.gauge-sub-label {
+  font-size: 9px; font-weight: 500;
+  font-family: var(--font);
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+:root { --br-track: rgba(0,0,0,0.08); --br-sub: #94a3b8; }
+.mm-app[data-theme="dark"] { --br-track: rgba(255,255,255,0.08); --br-sub: #64748b; }
+
+.gauge-verdict {
+  font-size: 12px; font-weight: 700;
+  padding: 3px 10px; border-radius: var(--r-full);
+  letter-spacing: 0.02em;
+}
+.verdict-ok   { background: rgba(16,185,129,0.12); color: #059669; }
+.verdict-warn { background: rgba(245,158,11,0.12); color: #d97706; }
+.verdict-bad  { background: rgba(239,68,68,0.12);  color: #dc2626; }
+.mm-app[data-theme="dark"] .verdict-ok   { color: #10b981; }
+.mm-app[data-theme="dark"] .verdict-warn { color: #f59e0b; }
+.mm-app[data-theme="dark"] .verdict-bad  { color: #ef4444; }
+
+.burnrate-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--s1) var(--s4); width: 100%; max-width: 220px;
+}
+.br-stat { display: flex; flex-direction: column; gap: 1px; }
+.br-stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.br-stat-val   { font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+
+/* ── Periodo personalizzato ─────────────────────────────────────────────────── */
+.custom-range {
+  display: flex; align-items: center; gap: var(--s2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px 8px;
+}
+.date-input {
+  background: transparent; border: none; outline: none;
+  font-size: 12px; font-weight: 600; font-family: var(--font);
+  color: var(--text); cursor: pointer;
+  width: 118px;
+}
+.date-input::-webkit-calendar-picker-indicator {
+  opacity: 0.4; cursor: pointer;
+  filter: var(--cal-filter, none);
+}
+.mm-app[data-theme="dark"] { --cal-filter: invert(1); }
+.date-sep { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+
+/* Transizione comparsa input */
+.custom-fade-enter-active, .custom-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.custom-fade-enter-from, .custom-fade-leave-to {
+  opacity: 0; transform: translateY(-4px);
+}
+
+
+/* ── Confronto periodo ──────────────────────────────────────────────────────── */
+.confronto-wrap {
+  display: flex; flex-direction: column; height: 100%; padding: var(--s2) var(--s3) var(--s3);
+  gap: var(--s2);
+}
+.confronto-toggle {
+  display: flex; gap: var(--s1); align-self: flex-end;
+}
+.ctg-btn {
+  font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: var(--r-full); border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  cursor: pointer; transition: all 0.15s;
+}
+.ctg-btn.active {
+  background: var(--text); color: var(--bg);
+  border-color: var(--text);
+}
+.confronto-kpis {
+  display: flex; gap: var(--s3); justify-content: center;
+  padding-top: var(--s1);
+}
+.ckpi {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 5px 12px; border-radius: var(--r-md); flex: 1;
+}
+.ckpi-pos { background: rgba(16,185,129,0.08); }
+.ckpi-neg { background: rgba(239,68,68,0.08); }
+.mm-app[data-theme="dark"] .ckpi-pos { background: rgba(16,185,129,0.12); }
+.mm-app[data-theme="dark"] .ckpi-neg { background: rgba(239,68,68,0.12); }
+.ckpi-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ckpi-delta { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; }
+.ckpi-pos .ckpi-delta { color: #059669; }
+.ckpi-neg .ckpi-delta { color: #dc2626; }
+.mm-app[data-theme="dark"] .ckpi-pos .ckpi-delta { color: #10b981; }
+.mm-app[data-theme="dark"] .ckpi-neg .ckpi-delta { color: #ef4444; }
+
+
+/* ── Confronto header ───────────────────────────────────────────────────────── */
+.confronto-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); flex-wrap: wrap;
+}
+.confronto-range-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-full); padding: 3px 10px;
+  white-space: nowrap;
+}
+.crl-prev { color: var(--text-muted); }
+.crl-cur  { color: var(--text); }
+
+
+/* ── Budget savings row ridisegnata ────────────────────────────────────────── */
+.budget-savings-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  min-height: 80px;
+}
+.savings-kpi-block {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 3px; padding: var(--s3) var(--s4);
+  min-width: 110px;
+}
+.skb-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.skb-value {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; color: var(--text);
+  line-height: 1.1;
+}
+.skb-sub {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+}
+.skb-target { color: #d97706; }
+.mm-app[data-theme="dark"] .skb-target { color: #fbbf24; }
+.skb-ok   { color: #059669 !important; }
+.skb-warn { color: #e11d48 !important; }
+.mm-app[data-theme="dark"] .skb-ok   { color: #10b981 !important; }
+.mm-app[data-theme="dark"] .skb-warn { color: #f43f5e !important; }
+
+.savings-divider {
+  width: 1px; background: var(--border);
+  flex-shrink: 0; align-self: stretch;
+}
+/* Override: il tip occupa lo spazio rimanente */
+.budget-savings-row .savings-tip-inline {
+  flex: 1; border-left: none; border-radius: 0;
+  padding: var(--s3) var(--s4);
+  border-left: 3px solid;
+}
+.budget-savings-row .sti-ok   { border-color: #059669; background: rgba(16,185,129,0.06); }
+.budget-savings-row .sti-warn { border-color: #e11d48; background: rgba(225,29,72,0.06); }
+.mm-app[data-theme="dark"] .budget-savings-row .sti-ok   { background: rgba(16,185,129,0.08); }
+.mm-app[data-theme="dark"] .budget-savings-row .sti-warn { background: rgba(244,63,94,0.08); }
+
+
+/* ── Heatmap Anno × Mese ────────────────────────────────────────────────────── */
+.heatmap-wrap {
+  display: flex; flex-direction: column; height: 100%;
+  padding: var(--s3) var(--s3) var(--s2);
+  gap: var(--s2);
+}
+.heatmap-header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  flex-shrink: 0;
+}
+.heatmap-toggle { display: flex; gap: var(--s1); }
+
+.heatmap-legend {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.hml-bar {
+  width: 64px; height: 8px; border-radius: 4px;
+  background: linear-gradient(to right, rgba(255,235,220,0.6), rgba(200,30,30,0.8));
+  border: 1px solid var(--border);
+}
+.mm-app[data-theme="dark"] .hml-bar {
+  background: linear-gradient(to right, rgba(40,15,15,0.6), rgba(230,50,30,0.9));
+}
+
+.heatmap-scroll {
+  flex: 1; overflow: auto;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+.heatmap-table {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.heatmap-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  padding: 4px 2px; text-align: center;
+  font-size: 10px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.hm-year-col  { width: 44px; }
+.hm-tot-col   { width: 44px; }
+.hm-month-col { width: calc((100% - 88px) / 12); min-width: 34px; }
+
+.hm-year-label {
+  position: sticky; left: 0; z-index: 1;
+  background: var(--surface-2); border-right: 1px solid var(--border);
+  padding: 5px 6px; font-size: 11px; font-weight: 800;
+  color: var(--text-muted); text-align: center; white-space: nowrap;
+}
+.hm-cell {
+  padding: 5px 2px; text-align: center;
+  transition: filter 0.15s; cursor: default;
+  border: 1px solid var(--border);
+}
+.hm-cell:hover { filter: brightness(0.88); z-index: 1; position: relative; }
+.hm-val {
+  font-size: 10px; font-weight: 700; line-height: 1;
+  display: block;
+}
+.hm-total {
+  position: sticky; right: 0;
+  padding: 5px 4px; text-align: center;
+  font-size: 10px; font-weight: 800;
+  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+}
+.heatmap-table tfoot td {
+  background: var(--surface-2) !important;
+  color: var(--text-muted) !important;
+  border-top: 2px solid var(--border);
+  font-size: 10px; font-weight: 600;
+  padding: 4px 2px; text-align: center;
+}
+.hm-avg { font-style: italic; }
+
+
+.hml-bar.hml-bar-inc {
+  background: linear-gradient(to right, rgba(220,255,235,0.6), rgba(10,130,80,0.85));
+}
+.mm-app[data-theme="dark"] .hml-bar.hml-bar-inc {
+  background: linear-gradient(to right, rgba(10,30,20,0.6), rgba(20,180,100,0.9));
+}
+
+
+.hm-future {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    var(--border) 3px,
+    var(--border) 4px
+  ) !important;
+  opacity: 0.35;
+  cursor: default;
+}
+
+
+/* ── Heatmap KPI row ────────────────────────────────────────────────────────── */
+.heatmap-kpi-row {
+  display: flex; gap: var(--s2); flex-shrink: 0;
+}
+.hm-kpi {
+  flex: 1; display: flex; flex-direction: column; gap: 1px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--s2) var(--s3);
+  box-shadow: var(--shadow-sm);
+}
+.hm-kpi-label {
+  font-size: 10px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.hm-kpi-val {
+  font-size: 15px; font-weight: 800; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+.hm-kpi-sub {
+  font-size: 10px; color: var(--text-muted); font-weight: 500;
+}
+.hm-kpi-low  { color: #059669; }
+.hm-kpi-high { color: #e11d48; }
+.mm-app[data-theme="dark"] .hm-kpi-low  { color: #10b981; }
+.mm-app[data-theme="dark"] .hm-kpi-high { color: #f43f5e; }
+
+
+/* ── Heatmap from-year selector ─────────────────────────────────────────────── */
+.heatmap-header-left {
+  display: flex; align-items: center; gap: var(--s2);
+}
+.hm-from-year {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-full); padding: 4px 12px;
+  box-shadow: var(--shadow-sm);
+}
+.hm-from-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+}
+.hm-year-select {
+  background: transparent; border: none; outline: none;
+  font-size: 11px; font-weight: 700; font-family: var(--font);
+  color: var(--text); cursor: pointer;
+  padding: 0; appearance: none; -webkit-appearance: none;
+}
+.hm-year-select option {
+  background: var(--bg); color: var(--text);
+}
+
+
+/* ── Anomalie & Sanguisughe ─────────────────────────────────────────────────── */
+.anomalie-wrap {
+  display: flex; flex-direction: column; height: 100%;
+  padding: var(--s3); gap: var(--s3); overflow: hidden;
+}
+.anomalie-header {
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.anomalie-title-group {
+  display: flex; align-items: center; gap: var(--s2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-full); padding: 4px 12px;
+}
+.anomalie-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.anomalie-month-sel { font-size: 12px; font-weight: 700; }
+.anomalie-sub { font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+.anomalie-body { display: flex; flex-direction: column; gap: var(--s3); flex: 1; overflow: hidden; }
+
+.anomalie-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); flex: 1; overflow: hidden; min-height: 0;
+}
+.anomalie-col {
+  display: flex; flex-direction: column; gap: var(--s2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--s3); overflow-y: auto;
+}
+.anomalie-col-header {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.anomalie-bad  .anomalie-col-header { color: #e11d48; }
+.anomalie-good .anomalie-col-header { color: #059669; }
+.mm-app[data-theme="dark"] .anomalie-bad  .anomalie-col-header { color: #f43f5e; }
+.mm-app[data-theme="dark"] .anomalie-good .anomalie-col-header { color: #10b981; }
+
+.anomalie-list { display: flex; flex-direction: column; gap: var(--s2); }
+.anomalie-item { display: flex; flex-direction: column; gap: 3px; }
+.ai-top { display: flex; justify-content: space-between; align-items: baseline; }
+.ai-cat { font-size: 12px; font-weight: 700; color: var(--text); }
+.ai-delta { font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bad-delta  { color: #e11d48; }
+.good-delta { color: #059669; }
+.mm-app[data-theme="dark"] .bad-delta  { color: #f43f5e; }
+.mm-app[data-theme="dark"] .good-delta { color: #10b981; }
+
+.ai-bar-wrap {
+  position: relative; height: 6px; background: var(--surface);
+  border-radius: 3px; overflow: hidden;
+}
+.ai-bar-avg {
+  position: absolute; left: 0; top: 0; height: 100%;
+  background: var(--border); border-radius: 3px;
+}
+.ai-bar-cur {
+  position: absolute; left: 0; top: 0; height: 100%;
+  border-radius: 3px; opacity: 0.85;
+}
+.bad-bar  { background: #e11d48; }
+.good-bar { background: #059669; }
+.mm-app[data-theme="dark"] .bad-bar  { background: #f43f5e; }
+.mm-app[data-theme="dark"] .good-bar { background: #10b981; }
+
+.ai-vals { display: flex; justify-content: space-between; }
+.ai-val-avg { font-size: 10px; color: var(--text-muted); }
+.ai-val-cur { font-size: 10px; font-weight: 600; color: var(--text); }
+
+.anomalie-empty {
+  display: flex; align-items: center; justify-content: center;
+  flex: 1; font-size: 12px; color: var(--text-muted); font-style: italic; padding: var(--s4);
+}
+
+/* ── Sanguisughe ── */
+.sanguisuga-wrap {
+  flex-shrink: 0; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: var(--s2) var(--s3);
+}
+.sanguisuga-title {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: var(--s2);
+}
+.sanguisuga-list { display: flex; flex-direction: column; gap: 4px; }
+.sg-item {
+  display: grid; grid-template-columns: 120px 28px 1fr 52px;
+  align-items: center; gap: var(--s2);
+}
+.sg-cat  { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg-freq { font-size: 10px; font-weight: 800; color: var(--text-muted); text-align: center; }
+.sg-bar-wrap { height: 5px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+.sg-bar { height: 100%; background: #d97706; border-radius: 3px; opacity: 0.7; }
+.mm-app[data-theme="dark"] .sg-bar { background: #fbbf24; }
+.sg-tot { font-size: 11px; font-weight: 700; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+
+
+
+/* ── PREVISIONI ── */
+.prev-wrap { display: flex; flex-direction: column; gap: var(--s6); padding: var(--s4) 0; }
+.prev-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s5); }
+.prev-section-title { display: flex; align-items: center; gap: var(--s2); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: var(--s4); }
+
+.prev-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s3); margin-bottom: var(--s4); }
+@media (max-width: 640px) { .prev-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+.prev-kpi { background: var(--surface-2); border-radius: var(--r-md); padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: 2px; }
+.prev-kpi-ok  { border-left: 3px solid var(--clr-income, #059669); }
+.prev-kpi-warn{ border-left: 3px solid #ef4444; }
+.prev-kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.prev-kpi-val   { font-size: 18px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.prev-kpi-sub   { font-size: 11px; color: var(--text-faint); }
+
+.prev-month-bar { margin-top: var(--s2); }
+.prev-month-bar-track { position: relative; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: visible; margin-bottom: var(--s2); }
+.prev-month-bar-fill  { height: 100%; background: var(--border); border-radius: 99px; transition: width 0.4s ease; }
+.prev-month-bar-pace  { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; }
+.pace-ok   { background: #059669; }
+.pace-warn { background: #ef4444; }
+.prev-month-bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.clr-ok   { color: #059669; }
+.clr-warn { color: #ef4444; }
+
+.prev-chart-wrap { height: 220px; }
+
+/* Ricorrenze */
+.ric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s3); }
+.ric-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s3) var(--s4); }
+.ric-current { border-color: #d97706; background: color-mix(in oklch, #d97706 8%, var(--surface-2)); }
+.ric-overdue  { border-color: #ef4444; background: color-mix(in oklch, #ef4444 6%, var(--surface-2)); }
+.ric-header { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-bottom: var(--s1); }
+.ric-cat    { font-size: 13px; font-weight: 700; color: var(--text); }
+.ric-badge  { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+.badge-now    { background: #fef3c7; color: #92400e; }
+.badge-past   { background: #fee2e2; color: #991b1b; }
+.badge-future { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
+.ric-body   { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--s1); }
+.ric-amount   { font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.ric-interval { font-size: 11px; color: var(--text-muted); }
+.ric-last     { font-size: 10px; color: var(--text-faint); }
+
+
+.prev-method-badge { font-size: 10px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 8px; color: var(--text-muted); margin-left: auto; }
+.prev-model-row { display: grid; grid-template-columns: repeat(4,1fr); gap: var(--s3); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--divider); }
+@media(max-width:640px){ .prev-model-row { grid-template-columns: repeat(2,1fr); } }
+.prev-model-item { display: flex; flex-direction: column; gap: 2px; }
+.prev-model-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
+.prev-model-val   { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.prev-model-sub   { font-size: 10px; color: var(--text-faint); }
+.income-text { color: #059669; }
+.expense-text { color: #ef4444; }
+
+
+/* ── RICORRENZE: abbonamenti table ── */
+.abb-table { display: flex; flex-direction: column; gap: 2px; }
+.abb-row { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 1.2fr; gap: var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r-sm); align-items: center; font-size: 13px; }
+.abb-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding-bottom: var(--s2); border-bottom: 1px solid var(--divider); margin-bottom: var(--s1); }
+.abb-row:not(.abb-header):hover { background: var(--surface-2); }
+.abb-missing { background: color-mix(in oklch, #ef4444 5%, var(--surface)); }
+.abb-cat    { font-weight: 700; color: var(--text); }
+.abb-amount { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.abb-months { color: var(--text-muted); }
+.abb-cv     { color: var(--text-muted); }
+.badge-ok      { font-size: 11px; font-weight: 700; color: #059669; background: color-mix(in oklch, #059669 12%, var(--surface)); padding: 2px 8px; border-radius: 99px; }
+.badge-missing { font-size: 11px; font-weight: 700; color: #ef4444; background: color-mix(in oklch, #ef4444 12%, var(--surface)); padding: 2px 8px; border-radius: 99px; }
+.badge-soon    { background: color-mix(in oklch, #3b82f6 15%, var(--surface)); color: #1d4ed8; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.ric-empty { font-size: 13px; color: var(--text-faint); padding: var(--s4) 0; text-align: center; }
+@media(max-width:640px){ .abb-row { grid-template-columns: 1fr 1fr; } .abb-row > :nth-child(3), .abb-row > :nth-child(4) { display: none; } }
+
 </style>
