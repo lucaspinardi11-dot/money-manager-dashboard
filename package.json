@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.3",
+    "@capacitor/cli": "^8.3.3",
+    "@capacitor/core": "^8.3.3",
+    "@capgo/capacitor-social-login": "^8.3.20",
     "@primeuix/themes": "^2.0.3",
     "chart.js": "^4.5.1",
     "chartjs-plugin-annotation": "^3.1.0",
@@ -19,6 +23,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",
     "vite": "^8.0.10",
+    "vite-plugin-gh-pages": "^1.0.1",
     "vite-plugin-static-copy": "^4.1.0"
   }
 }
