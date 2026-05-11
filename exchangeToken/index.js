@@ -2,19 +2,34 @@ const functions = require('@google-cloud/functions-framework');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'capacitor://localhost').split(',');
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ||
+  'capacitor://localhost,http://localhost,https://localhost'
+).split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
 
 functions.http('exchangeToken', async (req, res) => {
   const origin = req.headers.origin || '';
-  const allowed = ALLOWED_ORIGINS.includes(origin) || origin === '';
-  res.set('Access-Control-Allow-Origin', allowed ? origin : ALLOWED_ORIGINS[0]);
+  const allowed = !origin || ALLOWED_ORIGINS.includes(origin);
+
+  if (allowed) {
+    res.set('Access-Control-Allow-Origin', origin || ALLOWED_ORIGINS[0]);
+  }
+
+  res.set('Vary', 'Origin');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
-  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
 
-  const { code, refresh_token, action } = req.body;
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const { code, refresh_token, action } = req.body || {};
 
   try {
     let tokenResponse;
@@ -26,7 +41,7 @@ functions.http('exchangeToken', async (req, res) => {
         body: new URLSearchParams({
           client_id: CLIENT_ID,
           client_secret: CLIENT_SECRET,
-          refresh_token: refresh_token,
+          refresh_token,
           grant_type: 'refresh_token',
         }),
       });
@@ -37,9 +52,8 @@ functions.http('exchangeToken', async (req, res) => {
         body: new URLSearchParams({
           client_id: CLIENT_ID,
           client_secret: CLIENT_SECRET,
-          code: code,
+          code,
           grant_type: 'authorization_code',
-          redirect_uri: 'postmessage',
         }),
       });
     } else {
@@ -47,10 +61,23 @@ functions.http('exchangeToken', async (req, res) => {
       return;
     }
 
-    const data = await tokenResponse.json();
+    const rawText = await tokenResponse.text();
+    let data = {};
+
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText };
+    }
+
+    console.log('Google token exchange status:', tokenResponse.status);
+    console.log('Google token exchange body:', data);
 
     if (!tokenResponse.ok || data.error) {
-      res.status(400).json({ error: data.error_description || data.error });
+      res.status(400).json({
+        error: data.error_description || data.error || `HTTP ${tokenResponse.status}`,
+        details: data
+      });
       return;
     }
 
@@ -59,7 +86,6 @@ functions.http('exchangeToken', async (req, res) => {
       refresh_token: data.refresh_token || null,
       expires_in: data.expires_in,
     });
-
   } catch (err) {
     console.error('Errore interno:', err);
     res.status(500).json({ error: 'Errore interno del server' });
