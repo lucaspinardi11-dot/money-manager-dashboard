@@ -1,0 +1,12 @@
+{
+  "name": "money-manager-drive-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "functions-framework --target=getBackupFile"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "googleapis": "^128.0.0"
+  }
+}

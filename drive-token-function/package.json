@@ -1,0 +1,9 @@
+{
+  "name": "drive-token-function",
+  "version": "1.0.0",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}

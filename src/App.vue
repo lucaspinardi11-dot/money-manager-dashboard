@@ -773,9 +773,14 @@ ChartJS.register(annotationPlugin);
 
 // ── GOOGLE AUTH ──
 import { SocialLogin } from '@capgo/capacitor-social-login';
+import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 
 const WEB_CLIENT_ID = '1045116249963-98lmpknvv2rcmi347cn87ju720182kjn.apps.googleusercontent.com';
+// ⬇ Sostituisci con l'URL della tua Cloud Function dopo il deploy
+const CLOUD_FUNCTION_URL = 'https://europe-west1-money-manager-dashboard-495714.cloudfunctions.net/exchangeToken';
+const DRIVE_REFRESH_TOKEN_KEY = 'mm_drive_refresh_token';
+const DRIVE_USER_KEY = 'mm_drive_user';
 const ANDROID_CLIENT_ID = '1045116249963-93qenf947tljv3a4hs5je5djgs5i78pu.apps.googleusercontent.com';
 // Rilevamento piattaforma robusto: controlla sia Capacitor che user agent
 const isNative = ref(
@@ -786,66 +791,218 @@ const isNative = ref(
 
 const googleUser = ref(null);
 
+const DIRECT_TOKEN_PLACEHOLDER = '__direct_token__';
+
+const saveDriveUser = async (user) => {
+  const raw = JSON.stringify(user);
+  try { await Preferences.set({ key: DRIVE_USER_KEY, value: raw }); }
+  catch (e) { try { localStorage.setItem(DRIVE_USER_KEY, raw); } catch (e2) {} }
+};
+
+const loadDriveUser = async () => {
+  try { const { value } = await Preferences.get({ key: DRIVE_USER_KEY }); if (value) return value; } catch (e) {}
+  try { return localStorage.getItem(DRIVE_USER_KEY); } catch (e) { return null; }
+};
+
 const handleLogout = async () => {
   if (isNative.value) {
     try { await SocialLogin.logout({ provider: 'google' }); } catch (e) {}
   }
   googleUser.value = null;
-  googleAccessToken.value = null;
+  await Preferences.remove({ key: DRIVE_REFRESH_TOKEN_KEY }).catch(() => {})
+  await Preferences.remove({ key: DRIVE_USER_KEY }).catch(() => {})
+  driveAccessToken.value = null
+  driveTokenExpiry.value = 0
   fileLoaded.value = false;
   loadedFileName.value = '';
   statusMessage.value = 'In attesa del file...';
   isError.value = false;
   dbInstance = null;
-  if (!isNative) setTimeout(() => initGoogleSignIn(), 150);
+  if (!isNative.value) setTimeout(() => initGoogleSignIn(), 150);
 };
 
 // ── LOGIN NATIVO ANDROID ──
 const driveLoading = ref(false);
 const driveError = ref('');
 
-const googleAccessToken = ref(null);
+// ── DRIVE TOKEN MANAGEMENT ──
+const driveAccessToken  = ref(null);
+const driveTokenExpiry  = ref(0); // timestamp ms scadenza
+
+// Salva/legge refresh token con Preferences (storage nativo Android, persistente)
+const saveDriveRefreshToken = async (rt) => {
+  await Preferences.set({ key: DRIVE_REFRESH_TOKEN_KEY, value: rt });
+};
+
+const loadDriveRefreshToken = async () => {
+  try {
+    const { value } = await Preferences.get({ key: DRIVE_REFRESH_TOKEN_KEY });
+    if (value && value !== DIRECT_TOKEN_PLACEHOLDER) return value; // ← chiave
+  } catch(e) {}
+  try {
+    const value = localStorage.getItem(DRIVE_REFRESH_TOKEN_KEY);
+    if (value && value !== DIRECT_TOKEN_PLACEHOLDER) return value;
+  } catch(e) {}
+  return null;
+};
+
+// Ottieni un access token valido (da memoria, refresh, o nuovo login)
+const getDriveAccessToken = async () => {
+  console.log('[MM] getDriveAccessToken START');
+  // 1. Token in memoria ancora valido (con 60s di margine)
+  if (driveAccessToken.value && Date.now() < driveTokenExpiry.value - 60000) {
+    return driveAccessToken.value;
+  }
+
+  // 2. Prova a rinnovare con refresh_token salvato
+  const savedRefreshToken = await loadDriveRefreshToken();
+  console.log('[MM] savedRefreshToken:', savedRefreshToken ? savedRefreshToken.substring(0, 20) + '...' : 'null');
+  // __direct_token__ = aveva accesso Drive ma token non persistibile → nuovo login silenzioso
+  if (savedRefreshToken && savedRefreshToken !== '__direct_token__') {
+    try {
+      const resp = await fetch(CLOUD_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh', refresh_token: savedRefreshToken }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        driveAccessToken.value = data.access_token;
+        driveTokenExpiry.value = Date.now() + (data.expires_in * 1000);
+        return driveAccessToken.value;
+      }
+      // Refresh token scaduto/revocato: pulisci e procedi con nuovo login
+      try { await Preferences.remove({ key: DRIVE_REFRESH_TOKEN_KEY }) } catch(e) {}
+      driveAccessToken.value = null
+      driveTokenExpiry.value = 0
+    } catch(e) { console.warn('Refresh token fallito, procedo con login:', e); }
+  }
+
+  // 3. Nuovo login con scope Drive
+  console.log('[MM] Chiamando SocialLogin.initialize...');
+  await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } });
+  console.log('[MM] Chiamando SocialLogin.login...');
+  const result = await SocialLogin.login({
+    provider: 'google',
+    options: {
+      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    }
+  });
+
+  // Log completo per debug struttura risultato
+  console.log('[MM] login result FULL:', JSON.stringify(result));
+
+  // Salva profilo utente per riapertura app
+  if (result?.result?.profile) {
+    const p = result.result.profile;
+    const u = { name: p.name, given_name: p.givenName || p.name.split(' ')[0], picture: p.imageUrl, email: p.email };
+    googleUser.value = u;
+    await saveDriveUser(u)
+  }
+
+  // Prova prima con accessToken diretto (disponibile subito)
+  const rawToken = result?.result?.accessToken;
+  const directToken = rawToken?.token || (typeof rawToken === 'string' ? rawToken : null);
+  console.log('[MM] getDriveAccessToken result keys:', JSON.stringify(Object.keys(result?.result || {})));
+  console.log('[MM] accessToken type:', typeof rawToken, 'directToken:', !!directToken);
+  
+  
+  if (directToken) {
+  driveAccessToken.value = directToken;
+  driveTokenExpiry.value = Date.now() + 3600000;
+  await markDirectTokenSession(); // ← solo il placeholder, NON tocca il profilo
+  return directToken;
+}
+
+const markDirectTokenSession = async () => {
+  try { await Preferences.set({ key: DRIVE_REFRESH_TOKEN_KEY, value: DIRECT_TOKEN_PLACEHOLDER }); }
+  catch (e) { try { localStorage.setItem(DRIVE_REFRESH_TOKEN_KEY, DIRECT_TOKEN_PLACEHOLDER); } catch (e2) {} }
+};
+
+  // Fallback: usa getAuthorizationCode() per ottenere serverAuthCode → scambia con Cloud Function
+  let serverAuthCode = null;
+  try {
+    const authCodeResult = await SocialLogin.getAuthorizationCode({ provider: 'google' });
+    serverAuthCode = authCodeResult?.code || authCodeResult?.serverAuthCode;
+  } catch(e) { console.warn('getAuthorizationCode non disponibile:', e); }
+
+  if (!serverAuthCode) throw new Error('Autorizzazione Drive non riuscita. Riprova.');
+
+  // Scambia serverAuthCode con access_token + refresh_token via Cloud Function
+  const exchResp = await fetch(CLOUD_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'exchange', code: serverAuthCode }),
+  });
+  if (!exchResp.ok) {
+    const err = await exchResp.json().catch(() => ({}));
+    throw new Error(err.error || 'Errore scambio token con il server.');
+  }
+  const tokens = await exchResp.json();
+
+  driveAccessToken.value = tokens.access_token;
+  driveTokenExpiry.value = Date.now() + (tokens.expires_in * 1000);
+  if (tokens.refresh_token) await saveDriveRefreshToken(tokens.refresh_token);
+
+  return driveAccessToken.value;
+};
 
 const loginNative = async () => {
   try {
-    await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } });
-    const result = await SocialLogin.login({ provider: 'google', options: {} });
+    await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } })
+    const result = await SocialLogin.login({
+      provider: 'google',
+      options: {
+        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        // Forza la selezione account per ottenere il serverAuthCode
+      }
+    })
+    
+    // Salva profilo
     if (result?.result?.profile) {
-      const p = result.result.profile;
-      googleUser.value = { name: p.name, given_name: p.givenName || p.name.split(' ')[0], picture: p.imageUrl, email: p.email };
+      const p = result.result.profile
+      const user = { name: p.name, given_name: p.givenName || p.name.split(' ')[0], picture: p.imageUrl, email: p.email }
+      googleUser.value = user
+      await saveDriveUser(user)
     }
-    // Salva accessToken se disponibile (utile per Drive senza re-login)
-    const tok = result?.result?.accessToken?.token || result?.result?.accessToken;
-    if (tok) googleAccessToken.value = tok;
-  } catch (e) { console.error('Errore login nativo:', e); }
-};
+
+    // Prova a ottenere subito il serverAuthCode per il refresh token
+    try {
+      const authCodeResult = await SocialLogin.getAuthorizationCode({ provider: 'google' })
+      const serverAuthCode = authCodeResult?.code || authCodeResult?.serverAuthCode
+      if (serverAuthCode) {
+        console.log('[MM] serverAuthCode ottenuto, scambio con Cloud Function...')
+        const exchResp = await fetch(CLOUD_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'exchange', code: serverAuthCode })
+        })
+        if (exchResp.ok) {
+          const tokens = await exchResp.json()
+          driveAccessToken.value = tokens.access_token
+          driveTokenExpiry.value = Date.now() + tokens.expires_in * 1000
+          if (tokens.refresh_token) {
+            await saveDriveRefreshToken(tokens.refresh_token)
+            console.log('[MM] Refresh token salvato! Login silenzioso attivo.')
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[MM] getAuthorizationCode non disponibile:', e)
+      // Fallback: il token diretto verrà richiesto in getDriveAccessToken
+    }
+  } catch (e) {
+    console.error('Errore login nativo:', e)
+  }
+}
 
 // ── CARICA DA GOOGLE DRIVE ──
 const loadFromDrive = async () => {
+  console.log('[MM] loadFromDrive START');
   driveLoading.value = true;
   driveError.value = '';
   try {
-    let accessToken = googleAccessToken.value;
-
-    // Richiede nuovo token solo se non disponibile o scaduto
-    if (!accessToken) {
-      await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } });
-      const result = await SocialLogin.login({
-        provider: 'google',
-        options: {
-          scopes: ['https://www.googleapis.com/auth/drive.readonly']
-        }
-      });
-      accessToken = result?.result?.accessToken?.token || result?.result?.accessToken;
-      if (accessToken) googleAccessToken.value = accessToken;
-
-      // Aggiorna profilo utente se non già loggato
-      if (!googleUser.value && result?.result?.profile) {
-        const p = result.result.profile;
-        googleUser.value = { name: p.name, given_name: p.givenName || p.name.split(' ')[0], picture: p.imageUrl, email: p.email };
-      }
-    }
-
+    const accessToken = await getDriveAccessToken();
     if (!accessToken) throw new Error('Access token non disponibile. Riprova.');
 
     // 2. Cerca i file .mmbak su Drive, ordinati per data modifica
@@ -889,6 +1046,7 @@ const loadFromDrive = async () => {
     statusMessage.value = driveError.value;
     isError.value = true;
   } finally {
+    console.log('[MM] loadFromDrive END (finally)');
     driveLoading.value = false;
   }
 };
@@ -927,6 +1085,26 @@ onMounted(async () => {
     try {
       await SocialLogin.initialize({ google: { webClientId: WEB_CLIENT_ID } });
     } catch(e) { console.error('SocialLogin init error:', e); }
+
+    // Ripristina utente e carica automaticamente da Drive se già autorizzato
+    try {
+  const savedUserRaw = await loadDriveUser(); // usa il nuovo helper
+
+  let savedRtRaw = null;
+  try { const r = await Preferences.get({ key: DRIVE_REFRESH_TOKEN_KEY }); savedRtRaw = r.value; } catch(e) {}
+  if (!savedRtRaw) { try { savedRtRaw = localStorage.getItem(DRIVE_REFRESH_TOKEN_KEY); } catch(e) {} }
+
+  const hasRealRefreshToken = !!savedRtRaw && savedRtRaw !== DIRECT_TOKEN_PLACEHOLDER;
+  console.log('[MM] onMounted savedUser:', !!savedUserRaw, 'savedRt:', hasRealRefreshToken);
+
+  if (savedUserRaw) googleUser.value = JSON.parse(savedUserRaw); // ← sempre
+
+  if (savedUserRaw && hasRealRefreshToken) {
+    setTimeout(() => loadFromDrive(), 300);
+  } else if (savedUserRaw && !hasRealRefreshToken) {
+    console.log('[MM] Utente ripristinato, attendo azione utente');
+  }
+} catch(e) { console.error('[MM] Errore ripristino:', e); }
   } else {
     // Su Web: carica lo script GSI
     const script = document.createElement('script');
