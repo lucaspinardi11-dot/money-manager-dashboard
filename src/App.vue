@@ -7,10 +7,10 @@
         <div class="header-top">
           <div class="header-brand">
             <svg class="brand-logo" viewBox="0 0 32 32" fill="none" aria-label="Money Manager Logo">
-              <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
-              <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
-              <circle cx="10" cy="20" r="2" fill="currentColor"/>
-              <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
+              <rect x="4.5" y="5" width="23" height="22" rx="7" stroke="currentColor" stroke-width="2"/>
+              <path d="M9 20.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M10 17.5 13.5 14 16 16 21.5 10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="21.5" cy="10.5" r="1.5" fill="currentColor"/>
             </svg>
             <div class="brand-copy">
               <span class="brand-name">Money Manager</span>
@@ -63,11 +63,11 @@
 
           <!-- Logo + titolo -->
           <div class="login-header">
-            <svg style="width:48px;height:48px;color:var(--color-primary,#01696f)" viewBox="0 0 32 32" fill="none">
-              <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
-              <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
-              <circle cx="10" cy="20" r="2" fill="currentColor"/>
-              <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
+            <svg style="width:48px;height:48px;color:var(--color-primary,#01696f)" viewBox="0 0 32 32" fill="none" aria-label="Money Manager Logo">
+              <rect x="5" y="4" width="22" height="24" rx="6" stroke="currentColor" stroke-width="2"/>
+              <path d="M10 21l4-4 3 2 5-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M20.5 13h1.5v1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 24h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
             <h2 class="login-title">Money Manager</h2>
             <p class="login-subtitle">Dashboard personale</p>
@@ -172,31 +172,120 @@
       <!-- ── DASHBOARD CONTENT ── -->
       <div v-if="fileLoaded" class="dashboard-content">
 
-        <section class="period-panel hybrid-period-panel" aria-label="Filtro periodo">
-          <div class="period-panel-head hybrid-period-head">
-            <div class="period-pill period-pill-panel hybrid-period-pill">
-              <select class="period-select" v-model="selectedPeriod" @change="refreshData" aria-label="Seleziona periodo">
-                <option value="current_month">Questo Mese</option>
-                <option value="last_month">Mese Scorso</option>
-                <option value="ytd">Da Inizio Anno</option>
-                <option value="all">Tutto</option>
-                <option value="custom">Personalizzato…</option>
-              </select>
+        <section ref="periodCardRef" class="period-card" :class="{ open: periodPickerOpen }" aria-label="Filtro periodo">
+          <button
+            type="button"
+            class="period-card-toggle"
+            :class="{ open: periodPickerOpen }"
+            @click="togglePeriodPicker"
+            :aria-expanded="periodPickerOpen ? 'true' : 'false'"
+            aria-controls="period-picker-panel"
+          >
+            <div class="period-inline-summary">
+              <span class="period-inline-label">Periodo</span>
+              <span class="period-inline-value">{{ activePeriodLabel }}</span>
+              <span class="period-inline-range">{{ activePeriodRangeLabel }}</span>
             </div>
-          </div>
+
+            <span class="period-toggle-icon" :class="{ open: periodPickerOpen }" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
 
           <Transition name="custom-fade">
-            <div v-if="showCustom" class="custom-range-shell period-panel-range-shell hybrid-range-shell">
-              <div class="custom-range compact-range period-panel-range hybrid-period-range">
-                <label class="date-card date-card-start">
-                  <span class="date-card-label">Dal</span>
-                  <input type="date" v-model="customStart" @change="refreshData" class="date-input date-input-wide" aria-label="Data inizio" />
-                </label>
-                <label class="date-card date-card-end">
-                  <span class="date-card-label">Al</span>
-                  <input type="date" v-model="customEnd" @change="refreshData" class="date-input date-input-wide" aria-label="Data fine" />
-                </label>
+            <div v-if="periodPickerOpen" id="period-picker-panel" class="period-picker-panel">
+              <div class="period-presets" role="tablist" aria-label="Preset periodo">
+                <button
+                  type="button"
+                  class="period-preset"
+                  :class="{ active: selectedPeriod === 'current_month' }"
+                  @click="setPeriod('current_month')"
+                >
+                  Questo mese
+                </button>
+
+                <button
+                  type="button"
+                  class="period-preset"
+                  :class="{ active: selectedPeriod === 'last_month' }"
+                  @click="setPeriod('last_month')"
+                >
+                  Mese scorso
+                </button>
+
+                <button
+                  type="button"
+                  class="period-preset"
+                  :class="{ active: selectedPeriod === 'ytd' }"
+                  @click="setPeriod('ytd')"
+                >
+                  Da inizio anno
+                </button>
+
+                <button
+                  type="button"
+                  class="period-preset"
+                  :class="{ active: selectedPeriod === 'all' }"
+                  @click="setPeriod('all')"
+                >
+                  Tutto
+                </button>
+
+                <button
+                  type="button"
+                  class="period-preset period-preset-custom"
+                  :class="{ active: selectedPeriod === 'custom' }"
+                  @click="setPeriod('custom')"
+                >
+                  Personalizzato
+                </button>
               </div>
+
+              <Transition name="custom-fade">
+                <div v-if="showCustom" class="period-custom-panel">
+                  <div class="period-custom-head">
+                    <span class="period-custom-label">Intervallo personalizzato</span>
+                  </div>
+
+                  <div class="period-custom-grid">
+                    <label class="period-date-card" @click="openDatePicker('start')">
+                      <span class="period-date-label">Dal</span>
+                      <div class="period-date-pretty" aria-hidden="true">
+                        <span class="period-date-part day">{{ formatDateField(customStart).day }}</span>
+                        <span class="period-date-part month">{{ formatDateField(customStart).month }}</span>
+                        <span class="period-date-part year">{{ formatDateField(customStart).year }}</span>
+                      </div>
+                      <input
+                        ref="customStartPickerRef"
+                        type="date"
+                        v-model="customStart"
+                        @change="applyCustomPeriod"
+                        class="period-date-input period-date-input-overlay"
+                        aria-label="Data inizio"
+                      />
+                    </label>
+
+                    <label class="period-date-card" @click="openDatePicker('end')">
+                      <span class="period-date-label">Al</span>
+                      <div class="period-date-pretty" aria-hidden="true">
+                        <span class="period-date-part day">{{ formatDateField(customEnd).day }}</span>
+                        <span class="period-date-part month">{{ formatDateField(customEnd).month }}</span>
+                        <span class="period-date-part year">{{ formatDateField(customEnd).year }}</span>
+                      </div>
+                      <input
+                        ref="customEndPickerRef"
+                        type="date"
+                        v-model="customEnd"
+                        @change="applyCustomPeriod"
+                        class="period-date-input period-date-input-overlay"
+                        aria-label="Data fine"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </Transition>
             </div>
           </Transition>
         </section>
@@ -839,7 +928,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import initSqlJs from 'sql.js';
 import Chart from 'primevue/chart';
 import Tabs from 'primevue/tabs';
@@ -1326,6 +1415,8 @@ const initGoogleSignIn = () => {
 };
 
 onMounted(async () => {
+  document.addEventListener('pointerdown', handlePeriodCardClickOutside);
+  document.addEventListener('keydown', handlePeriodCardKeydown);
   isNative.value =
     Capacitor.isNativePlatform() ||
     window.location.href.startsWith('capacitor://') ||
@@ -1437,9 +1528,148 @@ const toggleTheme = () => { theme.value = theme.value === 'dark' ? 'light' : 'da
 // ── STATO ──
 let dbInstance = null;
 const selectedPeriod = ref('current_month');
+const periodPickerOpen = ref(false);
+const periodCardRef = ref(null);
 const customStart = ref('');
 const customEnd   = ref('');
+const customStartPickerRef = ref(null);
+const customEndPickerRef = ref(null);
 const showCustom  = computed(() => selectedPeriod.value === 'custom');
+const toInputDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const formatDateLabel = (value) => {
+  if (!value) return '—';
+  const d = new Date(`${value}T00:00:00`);
+  return d.toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const formatDateField = (value) => {
+  if (!value) return { day: 'GG', month: 'MM', year: 'AAAA' };
+  const d = new Date(`${value}T00:00:00`);
+  return {
+    day: d.toLocaleDateString('it-IT', { day: '2-digit' }),
+    month: d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '').toUpperCase(),
+    year: d.toLocaleDateString('it-IT', { year: 'numeric' })
+  };
+};
+
+const openDatePicker = (type) => {
+  const target = type === 'start' ? customStartPickerRef.value : customEndPickerRef.value;
+  if (!target) return;
+  if (typeof target.showPicker === 'function') target.showPicker();
+  else { target.focus(); target.click(); }
+};
+
+const togglePeriodPicker = () => {
+  periodPickerOpen.value = !periodPickerOpen.value;
+};
+
+const closePeriodPicker = () => {
+  periodPickerOpen.value = false;
+};
+
+const handlePeriodCardClickOutside = (event) => {
+  if (!periodPickerOpen.value) return;
+  const root = periodCardRef.value;
+  if (!root) return;
+  if (root.contains(event.target)) return;
+  closePeriodPicker();
+};
+
+const handlePeriodCardKeydown = (event) => {
+  if (event.key === 'Escape' && periodPickerOpen.value) {
+    closePeriodPicker();
+  }
+};
+
+const setPeriod = (period) => {
+  selectedPeriod.value = period;
+
+  if (period === 'custom') {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+
+    if (!customStart.value) {
+      customStart.value = toInputDate(new Date(y, m, 1));
+    }
+
+    if (!customEnd.value) {
+      customEnd.value = toInputDate(new Date(y, m + 1, 0));
+    }
+
+    refreshData();
+    return;
+  }
+
+  refreshData();
+  closePeriodPicker();
+};
+
+const applyCustomPeriod = () => {
+  if (!customStart.value || !customEnd.value) return;
+  refreshData();
+  closePeriodPicker();
+};
+
+const activePeriodLabel = computed(() => {
+  switch (selectedPeriod.value) {
+    case 'current_month':
+      return 'Questo mese';
+    case 'last_month':
+      return 'Mese scorso';
+    case 'ytd':
+      return 'Da inizio anno';
+    case 'all':
+      return 'Storico completo';
+    case 'custom':
+      return 'Periodo personalizzato';
+    default:
+      return 'Periodo';
+  }
+});
+
+const activePeriodRangeLabel = computed(() => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  if (selectedPeriod.value === 'current_month') {
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return `${formatDateLabel(toInputDate(start))} – ${formatDateLabel(toInputDate(end))}`;
+  }
+
+  if (selectedPeriod.value === 'last_month') {
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0);
+    return `${formatDateLabel(toInputDate(start))} – ${formatDateLabel(toInputDate(end))}`;
+  }
+
+  if (selectedPeriod.value === 'ytd') {
+    return `01 gen ${y} – oggi`;
+  }
+
+  if (selectedPeriod.value === 'all') {
+    return 'Tutti i movimenti disponibili';
+  }
+
+  if (selectedPeriod.value === 'custom') {
+    return `${formatDateLabel(customStart.value)} – ${formatDateLabel(customEnd.value)}`;
+  }
+
+  return '—';
+});
+
 const statusMessage = ref('In attesa del file...');
 const isError = ref(false);
 const fileLoaded = ref(false);
@@ -3185,6 +3415,11 @@ watch(activeBottomTab, (tab) => {
     if (!dettaglioData.value) loadDettaglio();
   }
 });
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handlePeriodCardClickOutside);
+  document.removeEventListener('keydown', handlePeriodCardKeydown);
+});
+
 </script>
 
 <style scoped>
@@ -3315,7 +3550,7 @@ html, body, #app {
   overflow: hidden;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .period-select {
@@ -3353,7 +3588,7 @@ html, body, #app {
   border-radius: var(--r-lg);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .date-card-label {
@@ -3577,7 +3812,7 @@ html, body, #app {
   min-width: 0;
   padding: 0.625rem 0.75rem;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  background: var(--surface-2);
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
 }
 
@@ -4344,7 +4579,7 @@ html, body, #app {
   padding: var(--s3) var(--s4); gap: var(--s3);
 }
 .header-brand { display: flex; align-items: center; gap: var(--s3); }
-.brand-logo { width: 30px; height: 30px; color: #3b82f6; flex-shrink: 0; }
+.brand-logo { width: 30px; height: 30px; color: #4f8cff; flex-shrink: 0; }
 .brand-name { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; display: block; line-height: 1.1; }
 .brand-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; }
 .header-actions { display: flex; align-items: center; gap: var(--s2); }
@@ -5123,7 +5358,7 @@ html, body, #app {
   flex: 1; display: flex; flex-direction: column; gap: 1px;
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: var(--s2) var(--s3);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 .hm-kpi-label {
   font-size: 10px; font-weight: 700; color: var(--text-muted);
@@ -5150,7 +5385,7 @@ html, body, #app {
   display: flex; align-items: center; gap: 5px;
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--r-full); padding: 4px 12px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 .hm-from-label {
   font-size: 11px; font-weight: 700; color: var(--text-muted);
@@ -5348,4 +5583,379 @@ html, body, #app {
 @media (max-width:479px) { .user-name { display:none; } }
 .btn-logout { display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:transparent;border:none;cursor:pointer;color:var(--text-muted); }
 .btn-logout:hover { background:#fee2e2;color:#dc2626; }
+
+.period-card {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: var(--s3);
+  padding: 0.72rem 0.9rem;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.period-card.open {
+  overflow: hidden;
+  padding: 0.78rem 0.82rem 0.82rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+
+.period-card-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.period-card-toggle.open {
+  padding-bottom: 0;
+}
+
+.period-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: transform 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.period-toggle-icon.open {
+  transform: rotate(180deg);
+  color: var(--text);
+}
+
+.period-picker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.55rem;
+}
+
+.period-inline-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.period-inline-label {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.period-inline-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.period-inline-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.period-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.period-preset {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  min-height: 38px;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.period-preset:hover {
+  transform: translateY(-1px);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--border));
+}
+
+.period-preset.active {
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary) 92%, white 8%),
+    color-mix(in srgb, var(--color-primary) 78%, black 22%)
+  );
+  border-color: color-mix(in srgb, var(--color-primary) 78%, black 22%);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-primary) 24%, transparent);
+}
+
+.period-preset-custom {
+  margin-left: auto;
+}
+
+.period-custom-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.period-custom-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.period-custom-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.period-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.period-custom-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.78rem;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.period-date-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  min-width: 0;
+  padding: 0.62rem 0.72rem;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.period-date-label {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.period-date-pretty {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  min-height: 1.8rem;
+  text-align: center;
+}
+
+.period-date-part {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.period-date-part.day,
+.period-date-part.year {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.period-date-part.month {
+  min-width: 3rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.period-date-input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.period-date-input-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.period-date-input-overlay::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mm-app[data-theme="dark"] .period-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.mm-app[data-theme="dark"] .period-card.open {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.mm-app[data-theme="dark"] .period-toggle-icon {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.mm-app[data-theme="dark"] .period-preset {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.mm-app[data-theme="dark"] .period-custom-panel {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.mm-app[data-theme="dark"] .period-date-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.custom-fade-enter-active,
+.custom-fade-leave-active {
+  transition: all 0.18s ease;
+}
+
+.custom-fade-enter-from,
+.custom-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@media (max-width: 720px) {
+  .period-card {
+    padding: 0.68rem 0.78rem;
+    border-radius: 16px;
+  }
+
+  .period-card.open {
+    padding: 0.74rem;
+  }
+
+  .period-card-toggle {
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0;
+  }
+
+  .period-inline-summary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.18rem 0.55rem;
+    align-items: center;
+  }
+
+  .period-inline-label {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .period-inline-value {
+    grid-column: 2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .period-inline-range {
+    grid-column: 2;
+    font-size: 0.72rem;
+  }
+
+  .period-preset {
+    flex: 1 1 calc(50% - 0.55rem);
+    justify-content: center;
+  }
+
+  .period-preset-custom {
+    margin-left: 0;
+  }
+
+  .period-custom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>
