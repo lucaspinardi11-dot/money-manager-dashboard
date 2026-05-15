@@ -45,7 +45,7 @@ functions.http('exchangeToken', async (req, res) => {
           grant_type: 'refresh_token',
         }),
       });
-    } else if (action === 'exchange' && code) {
+        } else if (action === 'exchange' && code) {
       tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -54,6 +54,7 @@ functions.http('exchangeToken', async (req, res) => {
           client_secret: CLIENT_SECRET,
           code,
           grant_type: 'authorization_code',
+          //redirect_uri: 'postmessage',
         }),
       });
     } else {
@@ -72,6 +73,9 @@ functions.http('exchangeToken', async (req, res) => {
 
     console.log('Google token exchange status:', tokenResponse.status);
     console.log('Google token exchange body:', data);
+    console.log('Has access_token:', !!data.access_token);
+    console.log('Has refresh_token:', !!data.refresh_token);
+    console.log('Expires in:', data.expires_in);
 
     if (!tokenResponse.ok || data.error) {
       res.status(400).json({

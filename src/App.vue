@@ -4,50 +4,51 @@
     <!-- ═══ HEADER ═══ -->
     <header class="mm-header">
       <div class="header-inner">
-        <div class="header-brand">
-          <svg class="brand-logo" viewBox="0 0 32 32" fill="none" aria-label="Money Manager Logo">
-            <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
-            <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
-            <circle cx="10" cy="20" r="2" fill="currentColor"/>
-            <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
-          </svg>
-          <div>
-            <span class="brand-name">Money Manager</span>
-            <span class="brand-sub">Dashboard</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <div v-if="fileLoaded" class="period-pill">
-            <select class="period-select" v-model="selectedPeriod" @change="refreshData" aria-label="Seleziona periodo">
-              <option value="current_month">Questo Mese</option>
-              <option value="last_month">Mese Scorso</option>
-              <option value="ytd">Da Inizio Anno</option>
-              <option value="all">Tutto</option>
-              <option value="custom">Personalizzato…</option>
-            </select>
-          </div>
-          <Transition name="custom-fade">
-            <div v-if="showCustom && fileLoaded" class="custom-range">
-              <input type="date" v-model="customStart" @change="refreshData" class="date-input" aria-label="Data inizio" />
-              <span class="date-sep">→</span>
-              <input type="date" v-model="customEnd" @change="refreshData" class="date-input" aria-label="Data fine" />
+        <div class="header-top">
+          <div class="header-brand">
+            <svg class="brand-logo" viewBox="0 0 32 32" fill="none" aria-label="Money Manager Logo">
+              <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
+              <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
+              <circle cx="10" cy="20" r="2" fill="currentColor"/>
+              <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
+            </svg>
+            <div class="brand-copy">
+              <span class="brand-name">Money Manager</span>
+              <span class="brand-sub">Dashboard</span>
             </div>
-          </Transition>
-          <label v-if="fileLoaded" class="btn-update" title="Cambia file database">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 10a6 6 0 1 0 6-6"/><path d="M4 6v4h4"/></svg>
-            <span class="btn-update-text">Aggiorna</span>
-            <input type="file" accept=".mmbak,.sqlite,.db" @change="handleFileUpload" style="display:none" />
-          </label>
-          <button class="theme-toggle" @click="toggleTheme" :aria-label="'Passa a tema ' + (theme === 'dark' ? 'chiaro' : 'scuro')">
-            <svg v-if="theme === 'dark'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/></svg>
-            <svg v-else viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17.5 11.5A7.5 7.5 0 1 1 8.5 2.5a5.5 5.5 0 1 0 9 9z"/></svg>
-          </button>
-          <div v-if="googleUser" class="user-chip">
-            <img :src="googleUser.picture" :alt="googleUser.name" class="user-avatar" referrerpolicy="no-referrer" />
-            <span class="user-name">{{ googleUser.given_name || googleUser.name }}</span>
-            <button class="btn-logout" @click="handleLogout" title="Esci">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M13 3h4v14h-4M8 7l-4 3 4 3M4 10h9"/></svg>
+          </div>
+
+          <div class="header-actions">
+            <label v-if="fileLoaded" class="btn-update" title="Cambia file database">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 10a6 6 0 1 0 6-6"/><path d="M4 6v4h4"/></svg>
+              <span class="btn-update-text">Aggiorna</span>
+              <input type="file" accept=".mmbak,.sqlite,.db" @change="handleFileUpload" style="display:none" />
+            </label>
+
+            <button class="theme-toggle" @click="toggleTheme" :aria-label="'Passa a tema ' + (theme === 'dark' ? 'chiaro' : 'scuro')">
+              <svg v-if="theme === 'dark'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/></svg>
+              <svg v-else viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17.5 11.5A7.5 7.5 0 1 1 8.5 2.5a5.5 5.5 0 1 0 9 9z"/></svg>
             </button>
+
+            <div v-if="googleUser" class="user-chip">
+              <img
+                v-if="googleUser.picture"
+                :src="googleUser.picture"
+                :alt="googleUser.name"
+                class="user-avatar"
+                referrerpolicy="no-referrer"
+                @error="avatarError = true"
+              />
+              <span
+                v-if="!googleUser.picture || avatarError"
+                class="user-avatar user-avatar-fallback"
+                :title="googleUser.name"
+              >{{ (googleUser.given_name || googleUser.name || '?')[0].toUpperCase() }}</span>
+              <span class="user-name">{{ googleUser.given_name || googleUser.name }}</span>
+              <button class="btn-logout" @click="handleLogout" title="Esci">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M13 3h4v14h-4M8 7l-4 3 4 3M4 10h9"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -56,69 +57,149 @@
     <!-- ═══ MAIN ═══ -->
     <main class="mm-main">
 
-      <!-- ── LOGIN SCREEN ── -->
-      <div v-if="!googleUser" class="upload-screen">
-        <div class="upload-card" style="max-width:360px">
-          <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
-            <svg style="width:52px;height:52px;color:var(--color-primary, #01696f)" viewBox="0 0 32 32" fill="none">
+      <!-- ── LOGIN / UPLOAD SCREEN ── -->
+      <div v-if="!fileLoaded" class="upload-screen">
+        <div class="login-card">
+
+          <!-- Logo + titolo -->
+          <div class="login-header">
+            <svg style="width:48px;height:48px;color:var(--color-primary,#01696f)" viewBox="0 0 32 32" fill="none">
               <rect x="3" y="8" width="26" height="18" rx="3" stroke="currentColor" stroke-width="2"/>
               <path d="M3 13h26" stroke="currentColor" stroke-width="2"/>
               <circle cx="10" cy="20" r="2" fill="currentColor"/>
               <rect x="15" y="19" width="8" height="2" rx="1" fill="currentColor"/>
             </svg>
+            <h2 class="login-title">Money Manager</h2>
+            <p class="login-subtitle">Dashboard personale</p>
           </div>
-          <h2 class="upload-title">Money Manager</h2>
-          <p class="upload-desc">Accedi con Google per continuare alla dashboard.</p>
-          <div v-if="!isNative" id="google-signin-btn" style="display:flex;justify-content:center;margin:1.5rem 0 0.5rem;min-height:44px"></div>
-          <button v-else @click="loginNative" class="upload-btn" style="margin:1.5rem auto 0.5rem;display:flex;align-items:center;gap:8px;justify-content:center;">
-            <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            Accedi con Google
-          </button>
-          <p style="font-size:12px;color:var(--text-faint);text-align:center;margin-top:0.5rem">🔒 I tuoi dati rimangono solo sul tuo dispositivo.</p>
-        </div>
-      </div>
 
-      <!-- ── UPLOAD SCREEN ── -->
-      <div v-else-if="!fileLoaded" class="upload-screen">
-        <div class="upload-card">
-          <div class="upload-icon-wrap">
-            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-              <rect x="6" y="10" width="36" height="30" rx="4" stroke-opacity="0.4"/>
-              <path d="M16 10V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/>
-              <path d="M24 22v8M20 26l4-4 4 4"/>
-              <path d="M16 34h16"/>
+          <!-- Messaggio di stato -->
+          <p v-if="statusMessage" class="login-status" :class="{ 'status-error': isError }">
+            <svg v-if="driveLoading" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;animation:spin 0.8s linear infinite">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.3"/>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
             </svg>
+            {{ statusMessage }}
+          </p>
+
+          <!-- ── SEZIONE GOOGLE DRIVE ── -->
+          <div class="login-section">
+            <div class="login-section-label">
+              <svg viewBox="0 0 87.3 78" width="16" height="14" xmlns="http://www.w3.org/2000/svg">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              Accedi con Google Drive
+            </div>
+            <p class="login-section-desc">Accedi per caricare automaticamente il backup <code>.mmbak</code> più recente.</p>
+
+            <!-- Web: pulsante GSI Google -->
+            <div v-if="!isNative" id="google-signin-btn" class="gsi-btn-wrap"></div>
+
+            <!-- Native: pulsante nativo -->
+            <button v-else @click="loginNative" class="login-btn login-btn-google" :disabled="driveLoading">
+              <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              {{ driveLoading ? 'Connessione...' : 'Accedi con Google' }}
+            </button>
+
+            <!-- Web: pulsante Drive (visibile dopo login GSI) -->
+            <button
+              v-if="!isNative && googleUser"
+              @click="loadFromDrive({ interactive: false })"
+              :disabled="driveLoading"
+              class="login-btn login-btn-drive"
+              style="margin-top:0.5rem"
+            >
+              <svg v-if="!driveLoading" viewBox="0 0 87.3 78" width="16" height="14" xmlns="http://www.w3.org/2000/svg">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 0.8s linear infinite">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.3"/>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+              </svg>
+              {{ driveLoading ? 'Caricamento...' : 'Carica da Google Drive' }}
+            </button>
           </div>
-          <h2 class="upload-title">Carica il tuo file</h2>
-          <p class="upload-desc">Seleziona il file <code>.mmbak</code> esportato da Money Manager.</p>
-          <label class="upload-btn">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10 2v10M6 6l4-4 4 4"/><path d="M3 14v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
-            Seleziona file
-            <input type="file" accept=".mmbak,.sqlite,.db" @change="handleFileUpload" style="display:none" />
-          </label>
-          <button v-if="isNative" class="upload-btn drive-btn" @click="loadFromDrive" :disabled="driveLoading" style="margin-top:0.75rem;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border);">
-            <svg v-if="!driveLoading" viewBox="0 0 87.3 78" width="18" height="16" xmlns="http://www.w3.org/2000/svg">
-              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
-            {{ driveLoading ? 'Caricamento...' : 'Carica da Google Drive' }}
-          </button>
-          <p class="status-msg" :class="{ 'status-error': isError }">{{ statusMessage }}</p>
-          <div class="upload-formats">
-            <span class="format-chip">.mmbak</span>
-            <span class="format-chip">.sqlite</span>
-            <span class="format-chip">.db</span>
+
+          <!-- ── DIVISORE ── -->
+          <div class="login-divider"><span>oppure</span></div>
+
+          <!-- ── SEZIONE UPLOAD MANUALE ── -->
+          <div class="login-section">
+            <div class="login-section-label">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <path d="M10 2v10M6 6l4-4 4 4"/>
+                <path d="M3 14v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/>
+              </svg>
+              Carica file manualmente
+            </div>
+            <p class="login-section-desc">Seleziona il file <code>.mmbak</code> esportato dall'app Money Manager.</p>
+            <label class="login-btn login-btn-file">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <rect x="3" y="4" width="14" height="14" rx="2"/>
+                <path d="M7 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/>
+                <path d="M10 9v4M8 11l2-2 2 2"/>
+              </svg>
+              Sfoglia file
+              <input type="file" accept=".mmbak,.sqlite,.db" @change="handleFileUpload" style="display:none" />
+            </label>
+            <div class="upload-formats" style="margin-top:0.75rem">
+              <span class="format-chip">.mmbak</span>
+              <span class="format-chip">.sqlite</span>
+              <span class="format-chip">.db</span>
+            </div>
           </div>
+
+          <p style="font-size:11px;color:var(--text-faint);text-align:center;margin-top:1rem;line-height:1.5">
+            🔒 I tuoi dati rimangono solo sul tuo dispositivo.<br>Nessun dato viene inviato a server esterni.
+          </p>
+
         </div>
       </div>
 
       <!-- ── DASHBOARD CONTENT ── -->
       <div v-if="fileLoaded" class="dashboard-content">
+
+        <section class="period-panel hybrid-period-panel" aria-label="Filtro periodo">
+          <div class="period-panel-head hybrid-period-head">
+            <div class="period-pill period-pill-panel hybrid-period-pill">
+              <select class="period-select" v-model="selectedPeriod" @change="refreshData" aria-label="Seleziona periodo">
+                <option value="current_month">Questo Mese</option>
+                <option value="last_month">Mese Scorso</option>
+                <option value="ytd">Da Inizio Anno</option>
+                <option value="all">Tutto</option>
+                <option value="custom">Personalizzato…</option>
+              </select>
+            </div>
+          </div>
+
+          <Transition name="custom-fade">
+            <div v-if="showCustom" class="custom-range-shell period-panel-range-shell hybrid-range-shell">
+              <div class="custom-range compact-range period-panel-range hybrid-period-range">
+                <label class="date-card date-card-start">
+                  <span class="date-card-label">Dal</span>
+                  <input type="date" v-model="customStart" @change="refreshData" class="date-input date-input-wide" aria-label="Data inizio" />
+                </label>
+                <label class="date-card date-card-end">
+                  <span class="date-card-label">Al</span>
+                  <input type="date" v-model="customEnd" @change="refreshData" class="date-input date-input-wide" aria-label="Data fine" />
+                </label>
+              </div>
+            </div>
+          </Transition>
+        </section>
 
         <!-- ── KPI ROW (stile pastello originale) ── -->
         <section class="kpi-row" aria-label="Riepilogo finanziario">
@@ -798,20 +879,34 @@ const driveAccessToken = ref(null);
 const driveTokenExpiry = ref(0);
 const nativeGoogleReady = ref(false);
 const loginInFlight = ref(false);
+const avatarError = ref(false);
 
 const mmLog = (...args) => console.log('[MM]', ...args);
 
+// Pref helpers: Capacitor Preferences su native, localStorage (con fallback) su web
 const prefSet = async (key, value) => {
-  await Preferences.set({ key, value });
+  if (isNative.value) {
+    await Preferences.set({ key, value });
+  } else {
+    try { localStorage.setItem(key, value); } catch { /* iframe sandbox: ignora */ }
+  }
 };
 
 const prefGet = async (key) => {
-  const { value } = await Preferences.get({ key });
-  return value ?? null;
+  if (isNative.value) {
+    const { value } = await Preferences.get({ key });
+    return value ?? null;
+  } else {
+    try { return localStorage.getItem(key) ?? null; } catch { return null; }
+  }
 };
 
 const prefRemove = async (key) => {
-  await Preferences.remove({ key }).catch(() => {});
+  if (isNative.value) {
+    await Preferences.remove({ key }).catch(() => {});
+  } else {
+    try { localStorage.removeItem(key); } catch { /* ignora */ }
+  }
 };
 
 const saveDriveUser = async (user) => {
@@ -1001,6 +1096,13 @@ const getDriveAccessToken = async ({ interactive = true } = {}) => {
     return null;
   }
 
+  // Su web il login interattivo è gestito da GSI (il pulsante Google nella login screen)
+  // Non tentiamo SocialLogin su piattaforma web
+  if (!isNative.value) {
+    mmLog('Web: token non disponibile, richiesto nuovo login GSI');
+    return null;
+  }
+
   await ensureNativeGoogleInitialized();
 
   const loginRes = await SocialLogin.login({
@@ -1164,6 +1266,7 @@ const handleLogout = async () => {
     }
   } finally {
     googleUser.value = null;
+    avatarError.value = false;
     driveAccessToken.value = null;
     driveTokenExpiry.value = 0;
     driveError.value = '';
@@ -1248,6 +1351,7 @@ onMounted(async () => {
 
       if (savedUser) {
         googleUser.value = savedUser;
+        avatarError.value = false;
       }
 
       if (savedUser && savedRefreshToken) {
@@ -1262,22 +1366,65 @@ onMounted(async () => {
       }
 
       if (savedUser && directSession) {
-        statusMessage.value = 'Account ripristinato. Tocca "Carica da Google Drive" per ricollegare Drive in modo persistente.';
-        isError.value = false;
-        return;
-      }
+  statusMessage.value = 'Sessione Google ripristinata. Ricollega Drive per il caricamento automatico persistente.';
+  isError.value = false;
+  return;
+}
 
-      statusMessage.value = 'Accedi con Google per continuare alla dashboard.';
+statusMessage.value = 'Accedi con Google o carica un file manualmente.';
     } catch (e) {
       console.error('[MM] onMounted restore error:', e);
       statusMessage.value = 'Errore nel ripristino sessione Google.';
       isError.value = true;
     }
   } else {
+    // ── WEB: prova a ripristinare la sessione da localStorage ──
+    try {
+      const savedUser    = await loadDriveUser();
+      const savedRt      = await loadRefreshToken();
+      const lastFileName = await loadLastDriveFileName();
+
+      mmLog('onMounted WEB — savedUser:', !!savedUser, '| savedRt:', !!savedRt);
+
+      if (savedUser) {
+        googleUser.value = savedUser;
+        avatarError.value = false;
+      }
+
+      if (savedUser && savedRt) {
+        // Refresh token presente: carica automaticamente il file Drive al riavvio
+        statusMessage.value = lastFileName
+          ? `Riapro ${lastFileName} da Google Drive...`
+          : 'Controllo backup su Google Drive...';
+        isError.value = false;
+
+        const script = document.createElement('script');
+        script.src    = 'https://accounts.google.com/gsi/client';
+        script.async  = true;
+        script.defer  = true;
+        script.onload = () => {
+          initGoogleSignIn();
+          setTimeout(() => loadFromDrive({ interactive: false }), 300);
+        };
+        document.head.appendChild(script);
+        return;
+      }
+
+      // Utente noto ma senza refresh token
+      statusMessage.value = savedUser
+        ? 'Bentornato! Accedi con Google Drive o carica un file.'
+        : 'Accedi con Google Drive o carica un file manualmente.';
+      isError.value = false;
+
+    } catch (e) {
+      mmLog('onMounted WEB restore error:', e);
+      statusMessage.value = 'Accedi con Google Drive o carica un file manualmente.';
+    }
+
     const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
+    script.src    = 'https://accounts.google.com/gsi/client';
+    script.async  = true;
+    script.defer  = true;
     script.onload = () => initGoogleSignIn();
     document.head.appendChild(script);
   }
@@ -2398,15 +2545,21 @@ const loadTopCat = () => {
 const handleFileUpload = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
+
   try {
     statusMessage.value = 'Apertura database...';
     isError.value = false;
     loadedFileName.value = file.name;
+
     const buf = await file.arrayBuffer();
     const SQL = await initSqlJs({ locateFile: f => `/sql-wasm.wasm` });
     dbInstance = new SQL.Database(new Uint8Array(buf));
+
     fileLoaded.value = true;
     refreshData();
+
+    statusMessage.value = `✅ File caricato: ${file.name}`;
+    isError.value = false;
   } catch (err) {
     isError.value = true;
     statusMessage.value = 'Errore: ' + err.message;
@@ -3035,6 +3188,1103 @@ watch(activeBottomTab, (tab) => {
 </script>
 
 <style scoped>
+
+/* ===== Header mobile rewrite + overflow hardening ===== */
+html, body, #app {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.mm-app,
+.mm-header,
+.header-inner,
+.header-top,
+.header-brand,
+.brand-copy,
+.header-actions,
+.period-panel,
+.period-panel-head,
+.period-pill,
+.period-pill-panel,
+.period-select,
+.custom-range-shell,
+.custom-range,
+.date-field,
+.date-card,
+.mm-main,
+.dashboard-content,
+.panel,
+.chart-wrap,
+.chart-wrap-tall,
+.mid-grid,
+.kpi-row,
+.tabs-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-app {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.mm-header {
+  width: 100%;
+  overflow: hidden;
+}
+
+.header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name,
+.brand-sub,
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.period-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-bottom: var(--s3);
+}
+
+.hybrid-period-panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hybrid-period-head {
+  display: block;
+}
+
+.period-pill {
+  width: 100%;
+  min-width: 0;
+}
+
+.hybrid-period-pill {
+  width: 100%;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.period-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-range-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.hybrid-range-shell {
+  width: 100%;
+}
+
+.hybrid-period-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.625rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.date-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.date-card-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+  flex: 0 0 auto;
+}
+
+.date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.date-input-wide {
+  width: 100%;
+  min-width: 0;
+  display: block;
+}
+
+.date-sep {
+  display: none;
+}
+
+.btn-update,
+.theme-toggle,
+.btn-logout,
+.user-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .btn-update-text,
+  .user-name {
+    display: none;
+  }
+
+  .btn-update {
+    padding-inline: 0.7rem;
+  }
+
+  .user-chip {
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+  }
+
+  .hybrid-period-range {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 721px) {
+  .hybrid-period-range {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.mm-app,
+.mm-header,
+.header-inner,
+.header-top,
+.header-brand,
+.brand-copy,
+.header-actions,
+.period-panel,
+.period-panel-head,
+.period-pill,
+.period-pill-panel,
+.period-select,
+.custom-range-shell,
+.custom-range,
+.date-field,
+.mm-main,
+.dashboard-content,
+.panel,
+.chart-wrap,
+.chart-wrap-tall,
+.mid-grid,
+.kpi-row,
+.tabs-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-app {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.mm-header {
+  width: 100%;
+  overflow: hidden;
+}
+
+.header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name,
+.brand-sub,
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.period-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  margin-bottom: var(--s3);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 84%, transparent), color-mix(in srgb, var(--surface-2) 92%, transparent));
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.period-panel-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.period-panel-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.period-pill {
+  width: 100%;
+  min-width: 0;
+}
+
+.period-pill-panel {
+  width: 100%;
+}
+
+.period-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-range-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.compact-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+.period-panel-range {
+  box-shadow: none;
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+  flex: 0 0 auto;
+}
+
+.date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.date-sep {
+  display: none;
+}
+
+.btn-update,
+.theme-toggle,
+.btn-logout,
+.user-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .btn-update-text,
+  .user-name {
+    display: none;
+  }
+
+  .btn-update {
+    padding-inline: 0.7rem;
+  }
+
+  .user-chip {
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+  }
+
+  .period-panel-head {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}
+
+@media (min-width: 721px) {
+  .compact-range {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .date-field {
+    min-width: 0;
+  }
+
+  .date-sep {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    font-weight: 700;
+    min-width: 1.25rem;
+  }
+}
+
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.mm-app,
+.mm-header,
+.header-inner,
+.header-top,
+.header-brand,
+.brand-copy,
+.header-actions,
+.period-toolbar,
+.period-toolbar-inner,
+.period-pill,
+.period-pill-standalone,
+.period-select,
+.custom-range-shell,
+.custom-range,
+.date-field,
+.mm-main,
+.dashboard-content,
+.panel,
+.chart-wrap,
+.chart-wrap-tall,
+.mid-grid,
+.kpi-row,
+.tabs-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-app {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.mm-header {
+  width: 100%;
+  overflow: hidden;
+}
+
+.header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name,
+.brand-sub,
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.period-toolbar {
+  padding: 0.625rem;
+  margin-bottom: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.period-toolbar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.period-pill {
+  width: 100%;
+  min-width: 0;
+}
+
+.period-pill-standalone {
+  width: 100%;
+}
+
+.period-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-range-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.compact-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 14px;
+  background: var(--surface-2, rgba(148,163,184,0.08));
+  border: 1px solid var(--border-color, rgba(148,163,184,0.18));
+}
+
+.toolbar-custom-range {
+  box-shadow: none;
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+  flex: 0 0 auto;
+}
+
+.date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.date-sep {
+  display: none;
+}
+
+.btn-update,
+.theme-toggle,
+.btn-logout,
+.user-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .btn-update-text,
+  .user-name {
+    display: none;
+  }
+
+  .btn-update {
+    padding-inline: 0.7rem;
+  }
+
+  .user-chip {
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+  }
+}
+
+@media (min-width: 721px) {
+  .compact-range {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .date-field {
+    min-width: 0;
+  }
+
+  .date-sep {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    font-weight: 700;
+    min-width: 1.25rem;
+  }
+}
+
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.mm-app,
+.mm-header,
+.header-inner,
+.header-top,
+.header-brand,
+.brand-copy,
+.header-actions,
+.header-filters,
+.period-pill,
+.period-select,
+.custom-range-shell,
+.custom-range,
+.date-field,
+.mm-main,
+.dashboard-content,
+.panel,
+.chart-wrap,
+.chart-wrap-tall,
+.mid-grid,
+.kpi-row,
+.tabs-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-app {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.mm-header {
+  width: 100%;
+  overflow: hidden;
+}
+
+.header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name,
+.brand-sub,
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.header-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.period-pill {
+  width: 100%;
+  min-width: 0;
+}
+
+.period-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-range-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.compact-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 14px;
+  background: var(--surface-2, rgba(148,163,184,0.08));
+  border: 1px solid var(--border-color, rgba(148,163,184,0.18));
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+  flex: 0 0 auto;
+}
+
+.date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.date-sep {
+  display: none;
+}
+
+.btn-update,
+.theme-toggle,
+.btn-logout,
+.user-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .btn-update-text,
+  .user-name {
+    display: none;
+  }
+
+  .btn-update {
+    padding-inline: 0.7rem;
+  }
+
+  .user-chip {
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+  }
+}
+
+@media (min-width: 721px) {
+  .compact-range {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .date-field {
+    min-width: 0;
+  }
+
+  .date-sep {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    font-weight: 700;
+    min-width: 1.25rem;
+  }
+}
+
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.mm-app,
+.mm-header,
+.header-inner,
+.header-top,
+.header-brand,
+.brand-copy,
+.header-actions,
+.header-filters,
+.period-pill,
+.period-select,
+.custom-range-card,
+.custom-range,
+.mm-main,
+.dashboard-content,
+.panel,
+.chart-wrap,
+.chart-wrap-tall,
+.mid-grid,
+.kpi-row,
+.tabs-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-app {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.mm-header {
+  width: 100%;
+  overflow: hidden;
+}
+
+.header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name,
+.brand-sub,
+.user-name,
+.custom-range-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.header-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.period-pill {
+  width: 100%;
+  min-width: 0;
+}
+
+.period-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-range-card {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border-color, rgba(148,163,184,0.18)) 100%, transparent);
+  background: color-mix(in srgb, var(--card-bg, rgba(255,255,255,0.82)) 88%, transparent);
+  border-radius: 14px;
+  padding: 0.75rem;
+}
+
+.custom-range-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.custom-range-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.82;
+}
+
+.custom-range-summary {
+  font-size: 0.78rem;
+  opacity: 0.72;
+  max-width: 60%;
+  text-align: right;
+}
+
+.custom-summary-sep {
+  margin: 0 0.25rem;
+  opacity: 0.6;
+}
+
+.custom-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.625rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.date-sep {
+  display: none;
+}
+
+.btn-update,
+.theme-toggle,
+.btn-logout,
+.user-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+
+  .btn-update-text,
+  .user-name {
+    display: none;
+  }
+
+  .btn-update {
+    padding-inline: 0.7rem;
+  }
+
+  .user-chip {
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+  }
+
+  .custom-range-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .custom-range-summary {
+    max-width: 100%;
+    text-align: left;
+  }
+}
+
+@media (min-width: 721px) {
+  .custom-range {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .date-sep {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.55;
+    font-weight: 700;
+    min-width: 1.5rem;
+  }
+}
+
 /* ════════════════════════════════
    DESIGN TOKENS
 ════════════════════════════════ */
@@ -3125,6 +4375,71 @@ watch(activeBottomTab, (tab) => {
    MAIN + UPLOAD
 ════════════════════════════════ */
 .mm-main { max-width: 960px; margin: 0 auto; padding: var(--s5) var(--s4) var(--s12); }
+/* ── LOGIN CARD ── */
+.login-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-xl); padding: var(--s8);
+  max-width: 400px; width: 100%; box-shadow: var(--sh-md);
+}
+.login-header {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s2); margin-bottom: var(--s5); text-align: center;
+}
+.login-title  { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; letter-spacing: -0.02em; }
+.login-subtitle { font-size: 13px; color: var(--text-muted); margin: 0; }
+.login-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-muted);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 8px 12px;
+  margin-bottom: var(--s4); line-height: 1.4;
+}
+.login-section { padding: var(--s3) 0; }
+.login-section-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: var(--s2);
+}
+.login-section-desc {
+  font-size: 12px; color: var(--text-muted);
+  margin: 0 0 var(--s3); line-height: 1.5;
+}
+.login-section-desc code {
+  background: var(--surface-2); padding: 1px 5px;
+  border-radius: 3px; font-size: 11px; font-family: monospace; color: #3b82f6;
+}
+.gsi-btn-wrap { display: flex; justify-content: flex-start; min-height: 44px; margin-top: var(--s2); }
+.login-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: opacity 0.15s, background 0.15s; border: none; text-decoration: none;
+}
+.login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.login-btn-google {
+  background: var(--text); color: var(--bg);
+  width: 100%; justify-content: center;
+}
+.login-btn-google:hover:not(:disabled) { opacity: 0.85; }
+.login-btn-drive {
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); width: 100%; justify-content: center;
+}
+.login-btn-drive:hover:not(:disabled) { background: var(--primary-hl); }
+.login-btn-file {
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border);
+}
+.login-btn-file:hover { background: var(--primary-hl); }
+.login-divider {
+  display: flex; align-items: center; gap: var(--s3);
+  color: var(--text-faint); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: var(--s2) 0;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .upload-screen {
   display: flex; justify-content: center; align-items: center;
   min-height: calc(100dvh - 130px); padding: var(--s8) 0;
@@ -4022,6 +5337,13 @@ watch(activeBottomTab, (tab) => {
 
 .user-chip { display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 3px; }
 .user-avatar { width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border); }
+.user-avatar-fallback {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:50%;
+  background:var(--primary-hl);color:var(--primary);
+  font-size:12px;font-weight:700;border:1.5px solid var(--border);
+  flex-shrink:0;
+}
 .user-name { font-size:13px;font-weight:600;color:var(--text);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 @media (max-width:479px) { .user-name { display:none; } }
 .btn-logout { display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:transparent;border:none;cursor:pointer;color:var(--text-muted); }
