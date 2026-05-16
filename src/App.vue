@@ -163,14 +163,29 @@
           </div>
 
           <p style="font-size:11px;color:var(--text-faint);text-align:center;margin-top:1rem;line-height:1.5">
-            🔒 I tuoi dati rimangono solo sul tuo dispositivo.<br>Nessun dato viene inviato a server esterni.
+            I tuoi dati rimangono solo sul tuo dispositivo.<br>Nessun dato viene inviato a server esterni.
           </p>
 
         </div>
       </div>
 
       <!-- ── DASHBOARD CONTENT ── -->
-      <div v-if="fileLoaded" class="dashboard-content">
+       <div v-if="fileLoaded" class="dashboard-content">
+  <nav class="mm-section-nav" aria-label="Sezioni dashboard">
+    <button
+      v-for="item in appSections"
+      :key="item.key"
+      type="button"
+      class="mm-section-tab"
+      :class="{ active: activeSection === item.key }"
+      @click="activeSection = item.key"
+    >
+      <span class="mm-section-tab-icon" v-html="item.icon"></span>
+      <span class="mm-section-tab-label">{{ item.label }}</span>
+    </button>
+  </nav>
+
+  <div v-if="activeSection === 'overview'" class="mm-screen">
 
         <section ref="periodCardRef" class="period-card" :class="{ open: periodPickerOpen }" aria-label="Filtro periodo">
           <button
@@ -338,8 +353,6 @@
           </div>
 
         </section>
-
-        <!-- ── MID GRID: Budget | Waterfall ── -->
         <section class="mid-grid">
 
           <!-- BUDGET -->
@@ -394,7 +407,7 @@
                 <div class="budget-savings-row">
                   <!-- Target -->
                   <div class="savings-kpi-block">
-                    <span class="skb-label">🎯 Target</span>
+                    <span class="skb-label">Target</span>
                     <span class="skb-value skb-target">€ {{ fmt0(currentStats.income * targetSavingsPct / 100) }}</span>
                     <span class="skb-sub">{{ targetSavingsPct }}% del reddito</span>
                   </div>
@@ -402,7 +415,7 @@
                   <div class="savings-divider"></div>
                   <!-- Risparmiato effettivo -->
                   <div class="savings-kpi-block">
-                    <span class="skb-label">💰 Risparmiato</span>
+                    <span class="skb-label">Risparmiato</span>
                     <span class="skb-value" :class="currentStats.net >= currentStats.income * targetSavingsPct / 100 ? 'skb-ok' : 'skb-warn'">
                       € {{ fmt0(currentStats.net) }}
                     </span>
@@ -529,7 +542,10 @@
 
         </section>
 
-        <!-- ── ANALYSIS TABS ── -->
+  </div>
+
+  <div v-if="activeSection === 'analysis'" class="mm-screen">
+<!-- ── ANALYSIS TABS ── -->
         <section class="panel tabs-panel">
           <Tabs :value="activeBottomTab" @update:value="activeBottomTab = $event">
             <TabList class="tab-list-custom">
@@ -914,7 +930,25 @@
           </Tabs>
         </section>
 
-      </div><!-- /dashboard-content -->
+  </div>
+
+  <div v-if="activeSection === 'settings'" class="mm-screen">
+    <div class="settings-card-grid">
+      <article class="settings-card">
+        <span class="settings-card-label">Modalità essenziale</span>
+        <h3>Per utenti non tecnici</h3>
+        <p>Solo panoramica, budget e messaggi chiari.</p>
+      </article>
+
+      <article class="settings-card">
+        <span class="settings-card-label">Modalità avanzata</span>
+        <h3>Per analisi complete</h3>
+        <p>Tutti gli strumenti analitici disponibili.</p>
+      </article>
+    </div>
+  </div>
+
+</div><!-- /dashboard-content -->
     </main>
 
     <!-- ── FOOTER ── -->
@@ -946,6 +980,43 @@ import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 
+const activeSection = ref('overview');
+
+const appSections = [
+  {
+    key: 'overview',
+    label: 'Panoramica e Budget',
+    icon: `
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14" aria-hidden="true">
+        <path d="M2.5 13.5h11"/>
+        <rect x="3" y="8" width="2.5" height="4.5" rx="0.8"/>
+        <rect x="6.75" y="5.5" width="2.5" height="7" rx="0.8"/>
+        <rect x="10.5" y="3" width="2.5" height="9.5" rx="0.8"/>
+      </svg>
+    `
+  },
+  {
+    key: 'analysis',
+    label: 'Analisi',
+    icon: `
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14" aria-hidden="true">
+        <path d="M2.5 12.5 6 8.5l2.5 2 5-6"/>
+        <path d="M11 4.5h2.5V7"/>
+      </svg>
+    `
+  },
+  {
+    key: 'settings',
+    label: 'Impostazioni',
+    icon: `
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14" aria-hidden="true">
+        <circle cx="8" cy="8" r="2.2"/>
+        <path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8M12.4 3.6l-1 1M4.6 11.4l-1 1M12.4 12.4l-1-1M4.6 4.6l-1-1"/>
+      </svg>
+    `
+  }
+];
+
 const WEB_CLIENT_ID = '1045116249963-98lmpknvv2rcmi347cn87ju720182kjn.apps.googleusercontent.com';
 const ANDROID_CLIENT_ID = '1045116249963-93qenf947tljv3a4hs5je5djgs5i78pu.apps.googleusercontent.com';
 const CLOUD_FUNCTION_URL = 'https://europe-west1-money-manager-dashboard-495714.cloudfunctions.net/exchangeToken';
@@ -970,7 +1041,10 @@ const nativeGoogleReady = ref(false);
 const loginInFlight = ref(false);
 const avatarError = ref(false);
 
-const mmLog = (...args) => console.log('[MM]', ...args);
+const DEBUG_MM = true;
+const mmLog = (...args) => {
+  if (DEBUG_MM) console.log('[MM]', ...args);
+};
 
 // Pref helpers: Capacitor Preferences su native, localStorage (con fallback) su web
 const prefSet = async (key, value) => {
@@ -998,62 +1072,52 @@ const prefRemove = async (key) => {
   }
 };
 
-const saveDriveUser = async (user) => {
-  if (!user) return;
-  await prefSet(DRIVE_USER_KEY, JSON.stringify(user));
+const saveJsonPref = async (key, value) => {
+  if (value == null) return;
+  await prefSet(key, JSON.stringify(value));
 };
 
-const loadDriveUser = async () => {
-  const raw = await prefGet(DRIVE_USER_KEY);
-  if (!raw) return null;
+const loadJsonPref = async (key, fallback = null) => {
+  const raw = await prefGet(key);
+  if (!raw) return fallback;
   try {
     return JSON.parse(raw);
   } catch {
-    return null;
+    return fallback;
   }
 };
 
-const saveRefreshToken = async (refreshToken) => {
-  if (!refreshToken) return;
-  await prefSet(DRIVE_REFRESH_TOKEN_KEY, refreshToken);
+const savePlainPref = async (key, value) => {
+  if (value == null || value === '') return;
+  await prefSet(key, String(value));
 };
 
-const loadRefreshToken = async () => {
-  const value = await prefGet(DRIVE_REFRESH_TOKEN_KEY);
-  return value || null;
+const loadPlainPref = async (key, fallback = null) => {
+  const value = await prefGet(key);
+  return value ?? fallback;
 };
 
-const clearRefreshToken = async () => {
-  await prefRemove(DRIVE_REFRESH_TOKEN_KEY);
+const removePrefs = async (...keys) => {
+  await Promise.all(keys.map((key) => prefRemove(key)));
 };
 
-const markDirectTokenSession = async () => {
-  await prefSet(DRIVE_DIRECT_SESSION_KEY, '1');
-};
-
-const clearDirectTokenSession = async () => {
-  await prefRemove(DRIVE_DIRECT_SESSION_KEY);
-};
-
-const hasDirectTokenSession = async () => {
-  const value = await prefGet(DRIVE_DIRECT_SESSION_KEY);
-  return value === '1';
-};
-
-const saveLastDriveFileName = async (name) => {
-  if (!name) return;
-  await prefSet(DRIVE_LAST_FILE_KEY, name);
-};
-
-const loadLastDriveFileName = async () => {
-  return await prefGet(DRIVE_LAST_FILE_KEY);
-};
-
+const saveDriveUser = async (user) => saveJsonPref(DRIVE_USER_KEY, user);
+const loadDriveUser = async () => loadJsonPref(DRIVE_USER_KEY);
+const saveRefreshToken = async (refreshToken) => savePlainPref(DRIVE_REFRESH_TOKEN_KEY, refreshToken);
+const loadRefreshToken = async () => loadPlainPref(DRIVE_REFRESH_TOKEN_KEY);
+const clearRefreshToken = async () => prefRemove(DRIVE_REFRESH_TOKEN_KEY);
+const markDirectTokenSession = async () => prefSet(DRIVE_DIRECT_SESSION_KEY, '1');
+const clearDirectTokenSession = async () => prefRemove(DRIVE_DIRECT_SESSION_KEY);
+const hasDirectTokenSession = async () => (await prefGet(DRIVE_DIRECT_SESSION_KEY)) === '1';
+const saveLastDriveFileName = async (name) => savePlainPref(DRIVE_LAST_FILE_KEY, name);
+const loadLastDriveFileName = async () => loadPlainPref(DRIVE_LAST_FILE_KEY);
 const clearDrivePersistence = async () => {
-  await clearRefreshToken();
-  await clearDirectTokenSession();
-  await prefRemove(DRIVE_USER_KEY);
-  await prefRemove(DRIVE_LAST_FILE_KEY);
+  await removePrefs(
+    DRIVE_REFRESH_TOKEN_KEY,
+    DRIVE_DIRECT_SESSION_KEY,
+    DRIVE_USER_KEY,
+    DRIVE_LAST_FILE_KEY
+  );
 };
 
 const ensureNativeGoogleInitialized = async () => {
@@ -3423,6 +3487,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Versione riscritta in modo conservativo: import e plugin mantenuti, struttura invariata, base pronta per ulteriori refactor mirati. */
 
 /* ===== Header mobile rewrite + overflow hardening ===== */
 html, body, #app {
@@ -5761,14 +5826,26 @@ html, body, #app {
 .period-custom-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: var(--s3);
+  align-items: end;
 }
+
+@media (max-width: 480px) {
+  .period-custom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.period-date-card {
+  min-width: 0;
+}
+
 
 .period-custom-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.78rem;
+  gap: 0.5rem;
+  padding: 0.68rem;
   border-radius: 16px;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -5779,9 +5856,9 @@ html, body, #app {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.42rem;
+  gap: 0.24rem;
   min-width: 0;
-  padding: 0.62rem 0.72rem;
+  padding: 0.42rem 0.58rem;
   border-radius: 14px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -5790,7 +5867,7 @@ html, body, #app {
 }
 
 .period-date-label {
-  font-size: 0.64rem;
+  font-size: 0.58rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5803,7 +5880,7 @@ html, body, #app {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   width: 100%;
-  min-height: 1.8rem;
+  min-height: 1.2rem;
   text-align: center;
 }
 
@@ -5817,14 +5894,14 @@ html, body, #app {
 
 .period-date-part.day,
 .period-date-part.year {
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .period-date-part.month {
-  min-width: 3rem;
-  font-size: 0.72rem;
+  min-width: 2.6rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5954,8 +6031,167 @@ html, body, #app {
   }
 
   .period-custom-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
   }
 }
 
+
+
+/* ════════════════════════════════
+   OVERRIDE LAYOUT OVERVIEW
+   Solo nav + KPI
+════════════════════════════════ */
+.mm-section-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 var(--s3);
+  padding: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 14px;
+  box-shadow: var(--sh-sm);
+}
+
+.mm-section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.mm-section-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.mm-section-tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.mm-section-tab.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 90%, transparent);
+}
+
+.mm-section-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mm-section-tab-icon :deep(svg),
+.mm-section-tab-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mm-section-tab-label {
+  display: inline-block;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.kpi-card {
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  min-height: 96px;
+}
+
+.kpi-header {
+  margin-bottom: 0.45rem;
+}
+
+.kpi-header h3 {
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.kpi-value {
+  font-size: 1.28rem;
+  line-height: 1.05;
+}
+
+.kpi-sub {
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+}
+
+.kpi-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.kpi-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+@media (max-width: 980px) {
+  .mm-section-nav {
+    display: flex;
+    width: 100%;
+  }
+
+  .kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mm-section-nav {
+    padding: 5px;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .mm-section-tab {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .kpi-row {
+    gap: 0.65rem;
+  }
+
+  .kpi-card {
+    padding: 0.72rem 0.8rem;
+    min-height: 88px;
+  }
+
+  .kpi-value {
+    font-size: 1.18rem;
+  }
+
+}
 </style>
